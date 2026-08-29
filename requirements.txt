@@ -1,0 +1,6 @@
+yt-dlp
+flask
+flask-cors
+pystray
+pillow
+pyinstaller
