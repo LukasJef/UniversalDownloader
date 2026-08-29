@@ -1,0 +1,883 @@
+
+<!doctype html>
+<html lang="cs" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Universal Downloader</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: { extend: {
+      colors: { ink: "#090b10", panel: "#121621", line: "#252b3a", accent: "#6366f1" },
+      boxShadow: { glow: "0 0 28px -8px rgba(99,102,241,.55)" }
+    } }
+  };
+</script>
+<style>
+  * { scrollbar-width: thin; scrollbar-color: #394155 transparent; }
+  body { background: #090b10; color: #e5e7eb; }
+  html:not(.dark) body { background: #f3f4f6; color: #111827; }
+  .glass { background: rgba(18,22,33,.84); border: 1px solid rgba(255,255,255,.08); }
+  html:not(.dark) .glass { background: rgba(255,255,255,.9); border: 1px solid rgba(0,0,0,.06); }
+  .field { background: rgba(3,7,18,.72); border: 1px solid #252b3a; color: inherit; }
+  html:not(.dark) .field { background: #fff; border: 1px solid #d1d5db; }
+  .field:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.13); }
+  .tab.active { background: #4f46e5; color: white; box-shadow: 0 5px 18px rgba(79,70,229,.25); }
+  .mode.active { background: rgba(99,102,241,.16); border-color: #818cf8; color: #a5b4fc; }
+  .toast { animation: toast-in .2s ease-out; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  #logs { white-space: pre-wrap; word-break: break-word; }
+</style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+
+<div id="install-gate" class="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center gap-6 p-6 text-center">
+  <div class="grid h-16 w-16 place-items-center rounded-3xl bg-indigo-500/15 text-4xl shadow-glow">⚡</div>
+  <div>
+    <h1 class="mb-2 text-2xl font-bold">Lokální služba nenalezena</h1>
+    <p class="text-sm text-gray-400">
+      Tahle stránka potřebuje malou lokální službu běžící na tvém počítači, která umí mluvit s yt-dlp.
+      Nic se neposílá nikam ven - běží to jen u tebe na <code class="rounded bg-black/40 px-1">127.0.0.1</code>.
+    </p>
+  </div>
+  <div class="glass w-full rounded-3xl p-6">
+    <p class="mb-4 text-xs uppercase tracking-widest text-gray-500">Stáhnout a nainstalovat</p>
+    <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
+      <!-- TODO: az bude hotovy instalator, nahrad "#" skutecnymi odkazy na GitHub Releases -->
+      <a id="download-windows" href="#" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold transition hover:bg-indigo-500">🪟 Windows (setup.exe)</a>
+      <a id="download-mac" href="#" class="rounded-xl border border-line bg-gray-800/60 px-5 py-3 text-sm font-medium transition hover:bg-gray-700">🍎 macOS</a>
+      <a id="download-linux" href="#" class="rounded-xl border border-line bg-gray-800/60 px-5 py-3 text-sm font-medium transition hover:bg-gray-700">🐧 Linux</a>
+    </div>
+    <p class="mt-4 text-xs text-gray-500">Instalátor zaregistruje službu, co běží na pozadí a startuje spolu s počítačem.</p>
+  </div>
+  <button id="retry-detect" class="rounded-xl border border-line bg-gray-800/60 px-6 py-3 text-sm font-medium transition hover:bg-gray-700">
+    🔄 Už jsem nainstaloval/spustil - zkusit znovu
+  </button>
+  <p id="detect-status" class="text-xs text-gray-600"></p>
+</div>
+
+<main id="app-root" class="hidden mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 p-5 md:p-8">
+
+  <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div class="flex items-center gap-3">
+      <div class="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-500/15 text-2xl shadow-glow">⚡</div>
+      <div>
+        <h1 data-i18n="title" class="text-2xl font-bold tracking-tight">Universal Downloader</h1>
+        <p data-i18n="subtitle" class="text-xs text-gray-500">Moderní rozhraní pro yt-dlp</p>
+      </div>
+    </div>
+    <div class="glass flex w-fit gap-1 rounded-2xl p-1">
+      <button class="tab active rounded-xl px-4 py-2 text-sm font-medium transition" data-tab="download" data-i18n="tabDownload">Stahování</button>
+      <button class="tab rounded-xl px-4 py-2 text-sm font-medium text-gray-400 transition hover:text-white" data-tab="settings" data-i18n="tabSettings">Nastavení</button>
+      <button class="tab rounded-xl px-4 py-2 text-sm font-medium text-gray-400 transition hover:text-white" data-tab="tools" data-i18n="tabTools">Nástroje</button>
+      <button class="tab rounded-xl px-4 py-2 text-sm font-medium text-gray-400 transition hover:text-white" data-tab="logs" data-i18n="tabLogs">Logy</button>
+    </div>
+  </header>
+
+  <div id="ffmpeg-warning" class="hidden rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+    ⚠ <span data-i18n="ffmpegMissing">FFmpeg nebyl nalezen v PATH. Slučování videa+audia, MP3/kontejner konverze a titulky do videa nebudou fungovat.</span>
+  </div>
+
+  <section class="glass rounded-3xl p-4 shadow-glow md:p-5">
+    <div class="mb-3 flex items-center justify-between gap-3">
+      <label for="url" data-i18n="urlLabel" class="text-xs font-semibold uppercase tracking-widest text-gray-400">URL adresa</label>
+      <span id="clipboard-state" class="hidden text-xs text-indigo-300"></span>
+    </div>
+    <div class="flex flex-col gap-2 md:flex-row">
+      <select id="platform" class="field rounded-xl px-3 py-3 text-sm md:w-36">
+        <option>Auto-Detect</option><option>YouTube</option><option>Instagram</option>
+        <option>TikTok</option><option>Twitter / X</option><option>Twitch</option><option>Facebook</option>
+      </select>
+      <input id="url" class="field min-w-0 flex-1 rounded-xl px-4 py-3 text-sm placeholder-gray-600" placeholder="https://..." autocomplete="off">
+      <button id="paste" class="rounded-xl border border-line bg-gray-800/60 px-4 py-3 text-sm font-medium transition hover:bg-gray-700" data-i18n="paste">📋 Vložit</button>
+      <button id="search" class="rounded-xl border border-line bg-gray-800/60 px-4 py-3 text-sm font-medium transition hover:bg-gray-700" data-i18n="findManually">🔎 Najít ručně</button>
+      <button id="fetch" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold shadow-lg shadow-indigo-950/50 transition hover:bg-indigo-500 active:scale-[.98]" data-i18n="fetch">Načíst info</button>
+    </div>
+  </section>
+
+  <div id="panel-download" class="tab-panel flex flex-1 flex-col gap-4">
+    <section class="glass rounded-3xl p-4 md:p-5">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <span data-i18n="modeTitle" class="text-xs font-semibold uppercase tracking-widest text-gray-400">Mód stahování</span>
+        <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
+          <input id="playlist" type="checkbox" class="h-4 w-4 accent-indigo-500"> <span data-i18n="playlist">Playlist</span>
+        </label>
+      </div>
+      <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <button class="mode active rounded-xl border border-line px-3 py-3 text-sm font-medium transition hover:bg-indigo-500/10" data-mode="video">🎬 <span data-i18n="video">Video</span></button>
+        <button class="mode rounded-xl border border-line px-3 py-3 text-sm font-medium text-gray-400 transition hover:bg-indigo-500/10" data-mode="audio">🎵 <span data-i18n="audio">Audio</span></button>
+        <button class="mode rounded-xl border border-line px-3 py-3 text-sm font-medium text-gray-400 transition hover:bg-indigo-500/10" data-mode="subs">💬 <span data-i18n="subtitles">Titulky</span></button>
+        <button class="mode rounded-xl border border-line px-3 py-3 text-sm font-medium text-gray-400 transition hover:bg-indigo-500/10" data-mode="thumb">🖼 <span data-i18n="thumbnail">Náhled</span></button>
+      </div>
+    </section>
+
+    <div class="grid flex-1 gap-4 lg:grid-cols-[1.05fr_.95fr]">
+      <section class="glass flex min-h-[280px] flex-col rounded-3xl p-5">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 data-i18n="previewTitle" class="font-semibold">Náhled média</h2>
+          <span id="info-badge" class="rounded-full bg-gray-800 px-2.5 py-1 text-[11px] text-gray-500" data-i18n="waitingUrl">Čeká na URL</span>
+        </div>
+        <div id="preview-empty" class="flex flex-1 flex-col items-center justify-center text-center text-sm text-gray-500">
+          <div class="mb-3 text-5xl opacity-50">☁</div>
+          <p data-i18n="previewEmpty">Vložte URL a klikněte na „Načíst info“.</p>
+        </div>
+        <div id="preview" class="hidden">
+          <img id="thumbnail" class="mb-4 aspect-video w-full rounded-2xl bg-gray-950 object-cover" alt="">
+          <h3 id="preview-title" class="line-clamp-2 text-base font-semibold"></h3>
+          <dl class="mt-3 grid grid-cols-2 gap-3 text-xs">
+            <div><dt class="text-gray-500" data-i18n="channel">Kanál</dt><dd id="preview-uploader" class="mt-1 truncate text-gray-300"></dd></div>
+            <div><dt class="text-gray-500" data-i18n="duration">Délka</dt><dd id="preview-duration" class="mt-1 text-gray-300"></dd></div>
+            <div id="playlist-meta" class="hidden"><dt class="text-gray-500" data-i18n="playlistCount">Playlist</dt><dd id="preview-playlist" class="mt-1 text-gray-300"></dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="glass rounded-3xl p-5">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 data-i18n="optionsTitle" class="font-semibold">Možnosti stahování</h2>
+          <span id="options-hint" class="text-xs text-gray-500" data-i18n="fetchFirst">Nejdříve načtěte info</span>
+        </div>
+        <div id="options" class="space-y-4 text-sm"></div>
+      </section>
+    </div>
+  </div>
+
+  <section id="panel-settings" class="tab-panel hidden space-y-4">
+    <div class="glass rounded-3xl p-5">
+      <h2 data-i18n="outputTitle" class="mb-4 font-semibold">Výstup</h2>
+      <label data-i18n="saveTo" class="mb-2 block text-xs text-gray-500">Ukládat do</label>
+      <div class="flex gap-2">
+        <input id="outdir" class="field min-w-0 flex-1 rounded-xl px-3 py-3 text-sm">
+        <button id="browse-outdir" data-i18n="browse" class="rounded-xl border border-line bg-gray-800/60 px-4 text-sm transition hover:bg-gray-700">Procházet</button>
+      </div>
+      <label data-i18n="renameLabel" class="mb-2 mt-4 block text-xs text-gray-500">Vlastní název souboru (nepovinné)</label>
+      <input id="rename" class="field w-full rounded-xl px-3 py-3 text-sm" data-i18n-ph="renamePlaceholder" placeholder="necháno prázdné = originální název">
+    </div>
+    <div class="glass rounded-3xl p-5">
+      <h2 data-i18n="cookiesTitle" class="mb-4 font-semibold">Ověření / cookies</h2>
+      <div class="grid gap-3 md:grid-cols-3">
+        <label class="flex cursor-pointer items-center gap-2 text-sm"><input name="cookie-mode" value="none" type="radio" class="accent-indigo-500"> <span data-i18n="cookieNone">Bez cookies</span></label>
+        <label class="flex cursor-pointer items-center gap-2 text-sm"><input name="cookie-mode" value="file" type="radio" class="accent-indigo-500"> <span data-i18n="cookieFile">Soubor cookies.txt</span></label>
+        <label class="flex cursor-pointer items-center gap-2 text-sm"><input name="cookie-mode" value="browser" type="radio" class="accent-indigo-500"> <span data-i18n="cookieBrowser">Z prohlížeče</span></label>
+      </div>
+      <div class="mt-4 flex gap-2">
+        <input id="cookie-path" class="field min-w-0 flex-1 rounded-xl px-3 py-3 text-sm" placeholder="cookies.txt">
+        <button id="browse-cookie" data-i18n="browse" class="rounded-xl border border-line bg-gray-800/60 px-4 text-sm transition hover:bg-gray-700">Procházet</button>
+        <select id="browser" class="field rounded-xl px-3 text-sm">
+          <option>chrome</option><option>firefox</option><option>edge</option><option>brave</option>
+          <option>opera</option><option>vivaldi</option><option>chromium</option><option>safari</option>
+        </select>
+      </div>
+    </div>
+    <div class="glass rounded-3xl p-5">
+      <h2 data-i18n="advancedTitle" class="mb-4 font-semibold">Pokročilé</h2>
+      <div class="flex flex-wrap items-end gap-4">
+        <label class="text-sm text-gray-300"><span data-i18n="speedLimit">Omezení rychlosti</span>
+          <input id="ratelimit" class="field ml-2 w-28 rounded-lg px-2 py-2 text-sm" placeholder="2M">
+        </label>
+        <button id="update-ytdlp" data-i18n="updateYtdlp" class="rounded-xl border border-line bg-gray-800/60 px-4 py-2 text-sm transition hover:bg-gray-700">🔄 Aktualizovat yt-dlp</button>
+      </div>
+    </div>
+    <div class="glass rounded-3xl p-5">
+      <h2 data-i18n="appearanceTitle" class="mb-4 font-semibold">Vzhled a jazyk</h2>
+      <div class="flex flex-wrap gap-4">
+        <label class="text-sm text-gray-300"><span data-i18n="appearance">Vzhled</span>
+          <select id="appearance" class="field ml-2 rounded-lg px-2 py-2 text-sm">
+            <option value="dark" data-i18n="dark">Tmavý</option><option value="light" data-i18n="light">Světlý</option>
+          </select>
+        </label>
+        <label class="text-sm text-gray-300"><span data-i18n="language">Jazyk</span>
+          <select id="language" class="field ml-2 rounded-lg px-2 py-2 text-sm">
+            <option value="cs">Čeština</option><option value="en">English</option>
+            <option value="pl">Polski</option><option value="fr">Français</option><option value="ja">日本語</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section id="panel-tools" class="tab-panel hidden space-y-4">
+    <div class="glass rounded-3xl p-5">
+      <h2 data-i18n="ffmpegTitle" class="mb-1 font-semibold">FFmpeg konvertor</h2>
+      <p data-i18n="ffmpegDescription" class="mb-4 text-xs text-gray-500">Převod libovolného souboru do jiného formátu. Vyžaduje ffmpeg v PATH.</p>
+      <label data-i18n="sourceFile" class="mb-2 block text-xs text-gray-500">Zdrojový soubor</label>
+      <div class="flex gap-2">
+        <input id="ffmpeg-file" class="field min-w-0 flex-1 rounded-xl px-3 py-3 text-sm">
+        <button id="browse-ffmpeg" data-i18n="browse" class="rounded-xl border border-line bg-gray-800/60 px-4 text-sm transition hover:bg-gray-700">Procházet</button>
+      </div>
+      <label data-i18n="targetFormat" class="mb-2 mt-4 block text-xs text-gray-500">Cílový formát</label>
+      <select id="ffmpeg-target" class="field w-40 rounded-xl px-3 py-3 text-sm">
+        <optgroup label="Audio"><option>mp3</option><option>m4a</option><option>wav</option><option>flac</option><option>ogg</option></optgroup>
+        <optgroup label="Video"><option>mp4</option><option>mkv</option><option>webm</option><option>avi</option></optgroup>
+        <optgroup label="Image"><option>jpg</option><option>png</option><option>webp</option></optgroup>
+      </select>
+      <button id="convert" data-i18n="convert" class="mt-4 block rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold transition hover:bg-indigo-500">Převést soubor</button>
+    </div>
+    <div class="glass rounded-3xl p-5">
+      <h2 data-i18n="queueTitle" class="mb-1 font-semibold">Fronta stahování</h2>
+      <p data-i18n="queueDescription" class="mb-4 text-xs text-gray-500">Přidej aktuální URL a nastavení do fronty a stáhni víc věcí za sebou.</p>
+      <div id="queue-list" class="mb-3 max-h-40 space-y-1 overflow-y-auto text-xs text-gray-400"></div>
+      <div class="flex flex-wrap gap-2">
+        <button id="queue-add" data-i18n="queueAdd" class="rounded-xl border border-line bg-gray-800/60 px-4 py-2 text-sm transition hover:bg-gray-700">➕ Přidat do fronty</button>
+        <button id="queue-run" data-i18n="queueRun" class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold transition hover:bg-indigo-500">⬇ Stáhnout frontu</button>
+        <button id="queue-clear" data-i18n="queueClear" class="rounded-xl border border-line bg-gray-800/60 px-4 py-2 text-sm transition hover:bg-gray-700">🗑 Vyprázdnit</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="panel-logs" class="tab-panel hidden flex-1">
+    <div class="glass flex h-full min-h-[320px] flex-col rounded-3xl p-5">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 data-i18n="logsTitle" class="font-semibold">Log</h2>
+        <span id="status" class="text-xs text-gray-500" data-i18n="ready">Připraveno</span>
+      </div>
+      <div id="logs" class="flex-1 overflow-y-auto rounded-xl bg-black/40 p-3 font-mono text-xs text-gray-400"></div>
+    </div>
+  </section>
+
+  <footer class="glass flex items-center gap-4 rounded-2xl px-5 py-4">
+    <div class="h-2 flex-1 overflow-hidden rounded-full bg-gray-800">
+      <div id="progress" class="h-full w-0 rounded-full bg-indigo-500 transition-all"></div>
+    </div>
+    <span id="progress-text" class="w-56 text-right text-xs text-gray-500"></span>
+    <button id="download" data-i18n="download" class="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold shadow-lg shadow-emerald-950/40 transition hover:bg-emerald-500 active:scale-[.98]">⬇ Stáhnout</button>
+  </footer>
+
+  <div id="toasts" class="pointer-events-none fixed bottom-5 right-5 z-50 flex w-80 flex-col gap-2"></div>
+</main>
+
+<script>
+
+// --- API shim: stejne jmena metod jako pywebview.api, ale volane pres fetch() ---
+// na lokalni sluzbu bezici na pocitaci uzivatele (viz ytdlp_local_server.py).
+const LOCAL_BASE = "http://127.0.0.1:47831";
+
+async function postJSON(path, body) {
+  const res = await fetch(LOCAL_BASE + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  return res.json();
+}
+
+const api = {
+  get_settings: () => fetch(LOCAL_BASE + "/api/settings").then(r => r.json()),
+  save_settings: (values) => postJSON("/api/settings", values),
+  select_path: (kind) => postJSON("/api/select_path", { kind }).then(r => r.path || ""),
+  open_folder: (path) => postJSON("/api/open_folder", { path }),
+  open_search: (query) => postJSON("/api/open_search", { query }),
+  fetch_info: (url, config) => postJSON("/api/fetch_info", { url, config }),
+  download: (url, config) => postJSON("/api/download", { url, config }),
+  poll: () => fetch(LOCAL_BASE + "/api/poll").then(r => r.json()),
+  convert_file: (source, target) => postJSON("/api/convert_file", { source, target }),
+  update_ytdlp: () => postJSON("/api/update_ytdlp", {})
+};
+
+function detectOS() {
+  const ua = navigator.userAgent;
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "mac";
+  if (/Linux/i.test(ua)) return "linux";
+  return "unknown";
+}
+
+async function pingLocalService(timeoutMs = 900) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(LOCAL_BASE + "/api/ping", { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (_) {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
+async function boot() {
+  const statusEl = document.getElementById("detect-status");
+  if (statusEl) statusEl.textContent = "Hledám lokální službu...";
+  const info = await pingLocalService();
+  if (info && info.ok) {
+    document.getElementById("install-gate").classList.add("hidden");
+    document.getElementById("app-root").classList.remove("hidden");
+    await initApp();
+  } else {
+    document.getElementById("install-gate").classList.remove("hidden");
+    document.getElementById("app-root").classList.add("hidden");
+    if (statusEl) statusEl.textContent = "Služba neodpovídá na http://127.0.0.1:47831.";
+    const os = detectOS();
+    const highlight = { windows: "download-windows", mac: "download-mac", linux: "download-linux" }[os];
+    if (highlight) document.getElementById(highlight).classList.add("ring-2", "ring-indigo-400");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const retryBtn = document.getElementById("retry-detect");
+  if (retryBtn) retryBtn.addEventListener("click", boot);
+  boot();
+});
+
+const translations = {
+  cs: { title:"Universal Downloader", subtitle:"Moderní rozhraní pro yt-dlp",
+    tabDownload:"Stahování", tabSettings:"Nastavení", tabTools:"Nástroje", tabLogs:"Logy",
+    urlLabel:"URL adresa", paste:"📋 Vložit", findManually:"🔎 Najít ručně", fetch:"Načíst info",
+    modeTitle:"Mód stahování", playlist:"Playlist", video:"Video", audio:"Audio", subtitles:"Titulky", thumbnail:"Náhled",
+    previewTitle:"Náhled média", previewEmpty:"Vložte URL a klikněte na „Načíst info“.", waitingUrl:"Čeká na URL",
+    fetching:"Načítám…", infoLoaded:"Info načteno", channel:"Kanál", duration:"Délka", playlistCount:"Playlist",
+    optionsTitle:"Možnosti stahování", fetchFirst:"Nejdříve načtěte info", optionsReady:"Volby jsou připravené",
+    optionsPlaceholder:"Nejdříve načtěte informace o médiu.",
+    qualityLabel:"Kvalita videa", best:"Nejlepší dostupná", dubLabel:"Jazyk zvukové stopy",
+    containerLabel:"Kontejner (ffmpeg)", containerAuto:"auto (bez převodu)", embedSubs:"Vložit titulky do videa",
+    audioTrackLabel:"Zvuková stopa", convertLabel:"Převést do formátu (ffmpeg)", convertNone:"beze změny",
+    subSourceLabel:"Zdroj titulků", subOriginal:"Originální", subAuto:"Automaticky generované",
+    subLangLabel:"Jazyk titulků", subFormatLabel:"Formát titulků", thumbQualityLabel:"Kvalita náhledu",
+    sizeUnknown:"neznámá velikost",
+    outputTitle:"Výstup", saveTo:"Ukládat do", browse:"Procházet", renameLabel:"Vlastní název souboru (nepovinné)",
+    renamePlaceholder:"necháno prázdné = originální název",
+    cookiesTitle:"Ověření / cookies", cookieNone:"Bez cookies", cookieFile:"Soubor cookies.txt", cookieBrowser:"Z prohlížeče",
+    advancedTitle:"Pokročilé", speedLimit:"Omezení rychlosti", updateYtdlp:"🔄 Aktualizovat yt-dlp",
+    appearanceTitle:"Vzhled a jazyk", appearance:"Vzhled", language:"Jazyk", dark:"Tmavý", light:"Světlý",
+    ffmpegTitle:"FFmpeg konvertor", ffmpegDescription:"Převod libovolného souboru do jiného formátu. Vyžaduje ffmpeg v PATH.",
+    sourceFile:"Zdrojový soubor", targetFormat:"Cílový formát", convert:"Převést soubor",
+    queueTitle:"Fronta stahování", queueDescription:"Přidej aktuální URL a nastavení do fronty a stáhni víc věcí za sebou.",
+    queueAdd:"➕ Přidat do fronty", queueRun:"⬇ Stáhnout frontu", queueClear:"🗑 Vyprázdnit", queueEmpty:"(fronta je prázdná)",
+    logsTitle:"Log", ready:"Připraveno", busy:"Pracuji…", download:"⬇ Stáhnout",
+    ffmpegMissing:"FFmpeg nebyl nalezen v PATH. Slučování videa+audia, MP3/kontejner konverze a titulky do videa nebudou fungovat.",
+    errNoUrl:"Vložte URL adresu.", errNoInfo:"Nejdříve načtěte informace.", errNoSource:"Vyberte zdrojový soubor.",
+    errNoClipboardUrl:"Ve schránce není URL.", errClipboard:"Schránku nelze přečíst. Vložte URL ručně.",
+    clipboardPasted:"URL vložená ze schránky", queueAdded:"Přidáno do fronty.", queueEmptyToast:"Fronta je prázdná."
+  },
+  en: { title:"Universal Downloader", subtitle:"Modern yt-dlp interface",
+    tabDownload:"Download", tabSettings:"Settings", tabTools:"Tools", tabLogs:"Logs",
+    urlLabel:"URL address", paste:"📋 Paste", findManually:"🔎 Find manually", fetch:"Fetch info",
+    modeTitle:"Download mode", playlist:"Playlist", video:"Video", audio:"Audio", subtitles:"Subtitles", thumbnail:"Thumbnail",
+    previewTitle:"Media preview", previewEmpty:"Paste a URL and click “Fetch info”.", waitingUrl:"Waiting for URL",
+    fetching:"Fetching…", infoLoaded:"Info loaded", channel:"Channel", duration:"Duration", playlistCount:"Playlist",
+    optionsTitle:"Download options", fetchFirst:"Fetch info first", optionsReady:"Options ready",
+    optionsPlaceholder:"Fetch media info first.",
+    qualityLabel:"Video quality", best:"Best available", dubLabel:"Audio track language",
+    containerLabel:"Container (ffmpeg)", containerAuto:"auto (no conversion)", embedSubs:"Embed subtitles into video",
+    audioTrackLabel:"Audio track", convertLabel:"Convert to format (ffmpeg)", convertNone:"no conversion",
+    subSourceLabel:"Subtitle source", subOriginal:"Original", subAuto:"Auto-generated",
+    subLangLabel:"Subtitle language", subFormatLabel:"Subtitle format", thumbQualityLabel:"Thumbnail quality",
+    sizeUnknown:"unknown size",
+    outputTitle:"Output", saveTo:"Save to", browse:"Browse", renameLabel:"Custom filename (optional)",
+    renamePlaceholder:"leave empty = original title",
+    cookiesTitle:"Authentication / cookies", cookieNone:"No cookies", cookieFile:"cookies.txt file", cookieBrowser:"From browser",
+    advancedTitle:"Advanced", speedLimit:"Speed limit", updateYtdlp:"🔄 Update yt-dlp",
+    appearanceTitle:"Appearance and language", appearance:"Appearance", language:"Language", dark:"Dark", light:"Light",
+    ffmpegTitle:"FFmpeg converter", ffmpegDescription:"Convert any file to another format. Requires ffmpeg in PATH.",
+    sourceFile:"Source file", targetFormat:"Target format", convert:"Convert file",
+    queueTitle:"Download queue", queueDescription:"Add the current URL and settings to the queue and download several things in a row.",
+    queueAdd:"➕ Add to queue", queueRun:"⬇ Download queue", queueClear:"🗑 Clear", queueEmpty:"(queue is empty)",
+    logsTitle:"Log", ready:"Ready", busy:"Working…", download:"⬇ Download",
+    ffmpegMissing:"FFmpeg was not found in PATH. Merging video+audio, MP3/container conversion and embedding subtitles won't work.",
+    errNoUrl:"Please enter a URL.", errNoInfo:"Fetch info first.", errNoSource:"Choose a source file.",
+    errNoClipboardUrl:"No URL in the clipboard.", errClipboard:"Can't read clipboard. Paste the URL manually.",
+    clipboardPasted:"URL pasted from clipboard", queueAdded:"Added to queue.", queueEmptyToast:"Queue is empty."
+  },
+  pl: { title:"Universal Downloader", subtitle:"Nowoczesny interfejs dla yt-dlp",
+    tabDownload:"Pobieranie", tabSettings:"Ustawienia", tabTools:"Narzędzia", tabLogs:"Logi",
+    urlLabel:"Adres URL", paste:"📋 Wklej", findManually:"🔎 Znajdź ręcznie", fetch:"Pobierz informacje",
+    modeTitle:"Tryb pobierania", playlist:"Playlista", video:"Wideo", audio:"Audio", subtitles:"Napisy", thumbnail:"Miniatura",
+    previewTitle:"Podgląd multimediów", previewEmpty:"Wklej URL i kliknij „Pobierz informacje”.", waitingUrl:"Oczekiwanie na URL",
+    fetching:"Pobieram…", infoLoaded:"Informacje pobrane", channel:"Kanał", duration:"Czas trwania", playlistCount:"Playlista",
+    optionsTitle:"Opcje pobierania", fetchFirst:"Najpierw pobierz informacje", optionsReady:"Opcje gotowe",
+    optionsPlaceholder:"Najpierw pobierz informacje o multimediach.",
+    qualityLabel:"Jakość wideo", best:"Najlepsza dostępna", dubLabel:"Język ścieżki dźwiękowej",
+    containerLabel:"Kontener (ffmpeg)", containerAuto:"auto (bez konwersji)", embedSubs:"Osadź napisy w wideo",
+    audioTrackLabel:"Ścieżka dźwiękowa", convertLabel:"Konwertuj do formatu (ffmpeg)", convertNone:"bez zmian",
+    subSourceLabel:"Źródło napisów", subOriginal:"Oryginalne", subAuto:"Automatycznie generowane",
+    subLangLabel:"Język napisów", subFormatLabel:"Format napisów", thumbQualityLabel:"Jakość miniatury",
+    sizeUnknown:"nieznany rozmiar",
+    outputTitle:"Wyjście", saveTo:"Zapisz w", browse:"Przeglądaj", renameLabel:"Własna nazwa pliku (opcjonalnie)",
+    renamePlaceholder:"puste = oryginalna nazwa",
+    cookiesTitle:"Uwierzytelnianie / cookies", cookieNone:"Bez cookies", cookieFile:"Plik cookies.txt", cookieBrowser:"Z przeglądarki",
+    advancedTitle:"Zaawansowane", speedLimit:"Limit prędkości", updateYtdlp:"🔄 Zaktualizuj yt-dlp",
+    appearanceTitle:"Wygląd i język", appearance:"Wygląd", language:"Język", dark:"Ciemny", light:"Jasny",
+    ffmpegTitle:"Konwerter FFmpeg", ffmpegDescription:"Konwersja dowolnego pliku do innego formatu. Wymaga ffmpeg w PATH.",
+    sourceFile:"Plik źródłowy", targetFormat:"Format docelowy", convert:"Konwertuj plik",
+    queueTitle:"Kolejka pobierania", queueDescription:"Dodaj bieżący URL i ustawienia do kolejki i pobierz kilka rzeczy z rzędu.",
+    queueAdd:"➕ Dodaj do kolejki", queueRun:"⬇ Pobierz kolejkę", queueClear:"🗑 Wyczyść", queueEmpty:"(kolejka jest pusta)",
+    logsTitle:"Log", ready:"Gotowe", busy:"Pracuję…", download:"⬇ Pobierz",
+    ffmpegMissing:"Nie znaleziono ffmpeg w PATH. Łączenie wideo+audio, konwersja MP3/kontenera i osadzanie napisów nie będą działać.",
+    errNoUrl:"Podaj adres URL.", errNoInfo:"Najpierw pobierz informacje.", errNoSource:"Wybierz plik źródłowy.",
+    errNoClipboardUrl:"Brak URL w schowku.", errClipboard:"Nie można odczytać schowka. Wklej URL ręcznie.",
+    clipboardPasted:"URL wklejony ze schowka", queueAdded:"Dodano do kolejki.", queueEmptyToast:"Kolejka jest pusta."
+  },
+  fr: { title:"Universal Downloader", subtitle:"Interface moderne pour yt-dlp",
+    tabDownload:"Téléchargement", tabSettings:"Paramètres", tabTools:"Outils", tabLogs:"Journal",
+    urlLabel:"Adresse URL", paste:"📋 Coller", findManually:"🔎 Trouver manuellement", fetch:"Charger les infos",
+    modeTitle:"Mode de téléchargement", playlist:"Playlist", video:"Vidéo", audio:"Audio", subtitles:"Sous-titres", thumbnail:"Miniature",
+    previewTitle:"Aperçu du média", previewEmpty:"Colle une URL et clique sur « Charger les infos ».", waitingUrl:"En attente d'une URL",
+    fetching:"Chargement…", infoLoaded:"Infos chargées", channel:"Chaîne", duration:"Durée", playlistCount:"Playlist",
+    optionsTitle:"Options de téléchargement", fetchFirst:"Charge d'abord les infos", optionsReady:"Options prêtes",
+    optionsPlaceholder:"Charge d'abord les infos du média.",
+    qualityLabel:"Qualité vidéo", best:"Meilleure disponible", dubLabel:"Langue de la piste audio",
+    containerLabel:"Conteneur (ffmpeg)", containerAuto:"auto (sans conversion)", embedSubs:"Intégrer les sous-titres à la vidéo",
+    audioTrackLabel:"Piste audio", convertLabel:"Convertir au format (ffmpeg)", convertNone:"sans changement",
+    subSourceLabel:"Source des sous-titres", subOriginal:"Originaux", subAuto:"Générés automatiquement",
+    subLangLabel:"Langue des sous-titres", subFormatLabel:"Format des sous-titres", thumbQualityLabel:"Qualité de la miniature",
+    sizeUnknown:"taille inconnue",
+    outputTitle:"Sortie", saveTo:"Enregistrer dans", browse:"Parcourir", renameLabel:"Nom de fichier personnalisé (facultatif)",
+    renamePlaceholder:"vide = titre original",
+    cookiesTitle:"Authentification / cookies", cookieNone:"Sans cookies", cookieFile:"Fichier cookies.txt", cookieBrowser:"Depuis le navigateur",
+    advancedTitle:"Avancé", speedLimit:"Limite de vitesse", updateYtdlp:"🔄 Mettre à jour yt-dlp",
+    appearanceTitle:"Apparence et langue", appearance:"Apparence", language:"Langue", dark:"Sombre", light:"Clair",
+    ffmpegTitle:"Convertisseur FFmpeg", ffmpegDescription:"Convertit un fichier dans un autre format. Nécessite ffmpeg dans le PATH.",
+    sourceFile:"Fichier source", targetFormat:"Format cible", convert:"Convertir le fichier",
+    queueTitle:"File d'attente", queueDescription:"Ajoute l'URL et les réglages actuels à la file pour tout enchaîner.",
+    queueAdd:"➕ Ajouter à la file", queueRun:"⬇ Télécharger la file", queueClear:"🗑 Vider", queueEmpty:"(file vide)",
+    logsTitle:"Journal", ready:"Prêt", busy:"En cours…", download:"⬇ Télécharger",
+    ffmpegMissing:"FFmpeg introuvable dans le PATH. La fusion vidéo+audio, la conversion MP3/conteneur et l'intégration des sous-titres ne fonctionneront pas.",
+    errNoUrl:"Merci d'entrer une URL.", errNoInfo:"Charge d'abord les infos.", errNoSource:"Choisis un fichier source.",
+    errNoClipboardUrl:"Pas d'URL dans le presse-papiers.", errClipboard:"Presse-papiers illisible. Colle l'URL manuellement.",
+    clipboardPasted:"URL collée depuis le presse-papiers", queueAdded:"Ajouté à la file.", queueEmptyToast:"La file est vide."
+  },
+  ja: { title:"Universal Downloader", subtitle:"yt-dlpのモダンなインターフェース",
+    tabDownload:"ダウンロード", tabSettings:"設定", tabTools:"ツール", tabLogs:"ログ",
+    urlLabel:"URLアドレス", paste:"📋 貼り付け", findManually:"🔎 手動で探す", fetch:"情報を取得",
+    modeTitle:"ダウンロードモード", playlist:"プレイリスト", video:"動画", audio:"音声", subtitles:"字幕", thumbnail:"サムネイル",
+    previewTitle:"メディアプレビュー", previewEmpty:"URLを貼り付けて「情報を取得」をクリック。", waitingUrl:"URL待ち",
+    fetching:"取得中…", infoLoaded:"情報を取得しました", channel:"チャンネル", duration:"長さ", playlistCount:"プレイリスト",
+    optionsTitle:"ダウンロードオプション", fetchFirst:"先に情報を取得してください", optionsReady:"オプション準備完了",
+    optionsPlaceholder:"先にメディア情報を取得してください。",
+    qualityLabel:"動画の画質", best:"最高画質", dubLabel:"音声トラックの言語",
+    containerLabel:"コンテナ (ffmpeg)", containerAuto:"自動 (変換なし)", embedSubs:"字幕を動画に埋め込む",
+    audioTrackLabel:"音声トラック", convertLabel:"変換先フォーマット (ffmpeg)", convertNone:"変換なし",
+    subSourceLabel:"字幕のソース", subOriginal:"オリジナル", subAuto:"自動生成",
+    subLangLabel:"字幕の言語", subFormatLabel:"字幕のフォーマット", thumbQualityLabel:"サムネイルの画質",
+    sizeUnknown:"サイズ不明",
+    outputTitle:"出力", saveTo:"保存先", browse:"参照", renameLabel:"カスタムファイル名(任意)",
+    renamePlaceholder:"空欄 = 元のタイトル",
+    cookiesTitle:"認証/Cookie", cookieNone:"Cookieを使用しない", cookieFile:"cookies.txtファイル", cookieBrowser:"ブラウザから",
+    advancedTitle:"詳細設定", speedLimit:"速度制限", updateYtdlp:"🔄 yt-dlpを更新",
+    appearanceTitle:"外観と言語", appearance:"外観", language:"言語", dark:"ダーク", light:"ライト",
+    ffmpegTitle:"FFmpeg変換ツール", ffmpegDescription:"任意のファイルを別のフォーマットに変換します。ffmpegがPATHに必要です。",
+    sourceFile:"元のファイル", targetFormat:"変換先フォーマット", convert:"ファイルを変換",
+    queueTitle:"ダウンロードキュー", queueDescription:"現在のURLと設定をキューに追加して、まとめてダウンロードできます。",
+    queueAdd:"➕ キューに追加", queueRun:"⬇ キューをダウンロード", queueClear:"🗑 クリア", queueEmpty:"(キューは空です)",
+    logsTitle:"ログ", ready:"準備完了", busy:"処理中…", download:"⬇ ダウンロード",
+    ffmpegMissing:"PATHにffmpegが見つかりません。動画+音声の結合、MP3/コンテナ変換、字幕の埋め込みが機能しません。",
+    errNoUrl:"URLを入力してください。", errNoInfo:"先に情報を取得してください。", errNoSource:"元のファイルを選択してください。",
+    errNoClipboardUrl:"クリップボードにURLがありません。", errClipboard:"クリップボードを読み取れません。URLを手動で貼り付けてください。",
+    clipboardPasted:"クリップボードからURLを貼り付けました", queueAdded:"キューに追加しました。", queueEmptyToast:"キューは空です。"
+  }
+};
+
+const state = { mode: "video", info: null, settings: {}, queue: [], lastInfoRev: 0, lastErrorRev: 0, lastDoneRev: 0 };
+const $ = (id) => document.getElementById(id);
+const text = (id, value) => { $(id).textContent = value; };
+const tr = (key) => (translations[$("language").value] || translations.cs)[key] || key;
+
+function applyLanguage() {
+  const dict = translations[$("language").value] || translations.cs;
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.dataset.i18n;
+    if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
+    const key = el.dataset.i18nPh;
+    if (dict[key] !== undefined) el.placeholder = dict[key];
+  });
+}
+
+function toast(message, kind = "info") {
+  const item = document.createElement("div");
+  item.className = `toast pointer-events-auto rounded-xl border px-4 py-3 text-sm shadow-xl ${
+    kind === "error" ? "border-red-500/30 bg-red-950/90 text-red-200" : "border-indigo-400/20 bg-gray-900/95 text-gray-200"
+  }`;
+  item.textContent = message;
+  $("toasts").appendChild(item);
+  setTimeout(() => item.remove(), 5000);
+}
+
+function log(message) {
+  const box = $("logs");
+  box.textContent += message + "\n";
+  box.scrollTop = box.scrollHeight;
+}
+
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
+  document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("hidden", panel.id !== `panel-${tab}`));
+}
+
+function switchMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll(".mode").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+    btn.classList.toggle("text-gray-400", btn.dataset.mode !== mode);
+  });
+  renderOptions();
+  saveSettings();
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
+}
+
+function sizeLabel(bytes) {
+  if (!bytes) return tr("sizeUnknown");
+  const units = ["B","KB","MB","GB"];
+  let i = 0, n = bytes;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `~${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function renderOptions() {
+  const box = $("options");
+  if (!state.info) {
+    box.innerHTML = `<p class="rounded-xl border border-dashed border-line p-5 text-sm text-gray-500">${tr("optionsPlaceholder")}</p>`;
+    text("options-hint", tr("fetchFirst"));
+    return;
+  }
+  text("options-hint", tr("optionsReady"));
+  const info = state.info;
+
+  if (state.mode === "video") {
+    const heights = [...new Set(info.formats.filter(f => f.vcodec !== "none" && f.height).map(f => Number(f.height)))].sort((a,b) => b-a);
+    const languages = [...new Set(info.formats.filter(f => f.acodec !== "none").map(f => f.language || "default"))];
+    box.innerHTML = `
+      <label class="block text-xs text-gray-400">${tr("qualityLabel")}
+        <div class="mt-2 flex items-center gap-2">
+          <select id="video-quality" class="field w-full rounded-xl px-3 py-3 text-sm">
+            ${heights.length ? heights.map(h => `<option value="${h}">${h}p</option>`).join("") : `<option value="">${tr("best")}</option>`}
+          </select>
+          <span id="video-size" class="whitespace-nowrap text-xs text-gray-500"></span>
+        </div>
+      </label>
+      <label class="block text-xs text-gray-400">${tr("dubLabel")}
+        <select id="video-language" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          ${(languages.length ? languages : ["default"]).map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("")}
+        </select>
+      </label>
+      <label class="block text-xs text-gray-400">${tr("containerLabel")}
+        <select id="video-container" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          <option value="auto">${tr("containerAuto")}</option>
+          <option value="mp4">mp4</option><option value="mkv">mkv</option><option value="webm">webm</option><option value="avi">avi</option>
+        </select>
+      </label>
+      <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
+        <input id="embed-subs" type="checkbox" class="h-4 w-4 accent-indigo-500" ${(info.subtitles.length || info.automatic_captions.length) ? "" : "disabled"}>
+        ${tr("embedSubs")}
+      </label>`;
+    state.videoFormats = info.formats;
+    const updateSize = () => {
+      const height = Number($("video-quality").value) || null;
+      const lang = $("video-language").value;
+      const vids = info.formats.filter(f => f.vcodec !== "none" && (!height || Number(f.height) === height));
+      const auds = info.formats.filter(f => f.acodec !== "none" && (lang === "default" || f.language === lang));
+      const vSize = vids.reduce((best, f) => f.filesize && (!best || f.filesize > best) ? f.filesize : best, 0);
+      const aSize = auds.reduce((best, f) => f.filesize && (!best || f.filesize > best) ? f.filesize : best, 0);
+      const total = (vSize || 0) + (aSize || 0);
+      $("video-size").textContent = total ? sizeLabel(total) : tr("sizeUnknown");
+    };
+    $("video-quality").addEventListener("change", updateSize);
+    $("video-language").addEventListener("change", updateSize);
+    updateSize();
+
+  } else if (state.mode === "audio") {
+    let tracks = info.formats.filter(f => f.acodec !== "none" && f.vcodec === "none");
+    if (!tracks.length) tracks = info.formats.filter(f => f.acodec !== "none");
+    state.audioTracks = tracks;
+    const options = tracks.length
+      ? tracks.map(f => `<option value="${escapeHtml(f.format_id)}" data-language="${escapeHtml(f.language || "default")}" data-size="${f.filesize || 0}">${escapeHtml(f.language || "?")} · ${escapeHtml(f.ext)} · ${f.abr ? Math.round(f.abr) + " kbps" : "?"}</option>`).join("")
+      : `<option value="">${tr("best")}</option>`;
+    box.innerHTML = `
+      <label class="block text-xs text-gray-400">${tr("audioTrackLabel")}
+        <div class="mt-2 flex items-center gap-2">
+          <select id="audio-track" class="field w-full rounded-xl px-3 py-3 text-sm">${options}</select>
+          <span id="audio-size" class="whitespace-nowrap text-xs text-gray-500"></span>
+        </div>
+      </label>
+      <label class="block text-xs text-gray-400">${tr("convertLabel")}
+        <select id="audio-convert" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          <option value="none">${tr("convertNone")}</option>
+          <option value="mp3">mp3</option><option value="m4a">m4a</option><option value="wav">wav</option>
+          <option value="flac">flac</option><option value="ogg">ogg</option>
+        </select>
+      </label>`;
+    const updateAudioSize = () => {
+      const opt = $("audio-track").selectedOptions[0];
+      const size = opt ? Number(opt.dataset.size || 0) : 0;
+      $("audio-size").textContent = size ? sizeLabel(size) : tr("sizeUnknown");
+    };
+    $("audio-track").addEventListener("change", updateAudioSize);
+    updateAudioSize();
+
+  } else if (state.mode === "subs") {
+    const original = info.subtitles || [];
+    const automatic = info.automatic_captions || [];
+    const defaultSource = original.length ? "original" : "automatic";
+    const initialLanguages = defaultSource === "original" ? original : automatic;
+    box.innerHTML = `
+      <label class="block text-xs text-gray-400">${tr("subSourceLabel")}
+        <select id="subtitle-source" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          ${original.length ? `<option value="original">${tr("subOriginal")}</option>` : ""}
+          ${automatic.length ? `<option value="automatic">${tr("subAuto")}</option>` : ""}
+        </select>
+      </label>
+      <label class="block text-xs text-gray-400">${tr("subLangLabel")}
+        <select id="subtitle-language" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          ${initialLanguages.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("")}
+        </select>
+      </label>
+      <label class="block text-xs text-gray-400">${tr("subFormatLabel")}
+        <select id="subtitle-format" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          <option value="best">best</option><option value="srt">srt</option><option value="vtt">vtt</option>
+        </select>
+      </label>`;
+    const source = $("subtitle-source");
+    source.value = defaultSource;
+    source.addEventListener("change", () => {
+      const langs = source.value === "original" ? original : automatic;
+      $("subtitle-language").innerHTML = langs.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("");
+    });
+
+  } else {
+    state.thumbs = info.thumbnails || [];
+    box.innerHTML = `
+      <label class="block text-xs text-gray-400">${tr("thumbQualityLabel")}
+        <select id="thumbnail-quality" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          ${state.thumbs.length ? state.thumbs.map((t, i) => `<option value="${i}">${t.width || "?"}×${t.height || "?"} (${escapeHtml(t.id || "-")})</option>`).join("") : `<option value="0">${tr("best")}</option>`}
+        </select>
+      </label>
+      <label class="block text-xs text-gray-400">${tr("convertLabel")}
+        <select id="thumbnail-convert" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          <option value="none">${tr("convertNone")}</option>
+          <option value="jpg">jpg</option><option value="png">png</option><option value="webp">webp</option>
+        </select>
+      </label>`;
+  }
+}
+
+function receiveInfo(info) {
+  state.info = info;
+  $("preview-empty").classList.add("hidden");
+  $("preview").classList.remove("hidden");
+  $("thumbnail").src = info.thumbnails && info.thumbnails[0] ? info.thumbnails[0].url : "";
+  text("preview-title", info.title || "?");
+  text("preview-uploader", info.uploader || "?");
+  text("preview-duration", info.duration || "?");
+  if (info.playlist_count) {
+    $("playlist-meta").classList.remove("hidden");
+    text("preview-playlist", `${info.playlist_count}`);
+  } else {
+    $("playlist-meta").classList.add("hidden");
+  }
+  $("info-badge").textContent = tr("infoLoaded");
+  $("info-badge").className = "rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-300";
+  renderOptions();
+  toast(tr("infoLoaded"));
+}
+
+function config() {
+  const selectedCookie = document.querySelector('input[name="cookie-mode"]:checked');
+  const audioOpt = $("audio-track") ? $("audio-track").selectedOptions[0] : null;
+  return {
+    platform: $("platform").value,
+    mode: state.mode,
+    playlist: $("playlist").checked,
+    outdir: $("outdir").value,
+    rename: $("rename").value,
+    ratelimit: $("ratelimit").value,
+    cookie_mode: selectedCookie ? selectedCookie.value : "none",
+    cookie_path: $("cookie-path").value,
+    browser: $("browser").value,
+    video_height: $("video-quality") ? $("video-quality").value : "",
+    video_language: $("video-language") ? $("video-language").value : "default",
+    video_container: $("video-container") ? $("video-container").value : "auto",
+    embed_subs: $("embed-subs") ? $("embed-subs").checked : false,
+    has_manual_subs: !!(state.info && state.info.subtitles.length),
+    has_auto_subs: !!(state.info && state.info.automatic_captions.length),
+    audio_format_id: $("audio-track") ? $("audio-track").value : "",
+    audio_language: audioOpt ? audioOpt.dataset.language : "default",
+    audio_convert: $("audio-convert") ? $("audio-convert").value : "none",
+    subtitle_source: $("subtitle-source") ? $("subtitle-source").value : "original",
+    subtitle_language: $("subtitle-language") ? $("subtitle-language").value : "",
+    subtitle_format: $("subtitle-format") ? $("subtitle-format").value : "best",
+    thumbnail_index: $("thumbnail-quality") ? $("thumbnail-quality").value : "0",
+    thumbnail_convert: $("thumbnail-convert") ? $("thumbnail-convert").value : "none"
+  };
+}
+
+function collectSettings() {
+  const selectedCookie = document.querySelector('input[name="cookie-mode"]:checked');
+  return {
+    ...state.settings,
+    language: $("language").value, appearance: $("appearance").value, platform: $("platform").value,
+    mode: state.mode, playlist: $("playlist").checked,
+    cookie_mode: selectedCookie ? selectedCookie.value : "none",
+    cookie_path: $("cookie-path").value, browser: $("browser").value,
+    outdir: $("outdir").value, rename: $("rename").value, ratelimit: $("ratelimit").value,
+    last_url: $("url").value
+  };
+}
+
+async function saveSettings() {
+  state.settings = collectSettings();
+  try { await api.save_settings(state.settings); } catch (_) {}
+}
+
+function setBusy(value) {
+  ["fetch", "download", "convert", "update-ytdlp"].forEach((id) => { if ($(id)) $(id).disabled = value; });
+  text("status", value ? tr("busy") : tr("ready"));
+}
+
+function applySettings(settings) {
+  state.settings = settings || {};
+  $("language").value = state.settings.language || "cs";
+  applyLanguage();
+  $("appearance").value = state.settings.appearance || "dark";
+  document.documentElement.classList.toggle("dark", $("appearance").value !== "light");
+  $("platform").value = state.settings.platform || "Auto-Detect";
+  $("playlist").checked = !!state.settings.playlist;
+  $("outdir").value = state.settings.outdir || "";
+  $("rename").value = state.settings.rename || "";
+  $("ratelimit").value = state.settings.ratelimit || "";
+  $("cookie-path").value = state.settings.cookie_path || "";
+  $("browser").value = state.settings.browser || "chrome";
+  const cookie = document.querySelector(`input[name="cookie-mode"][value="${state.settings.cookie_mode || "none"}"]`);
+  if (cookie) cookie.checked = true; else document.querySelector('input[name="cookie-mode"][value="none"]').checked = true;
+  state.mode = state.settings.mode || "video";
+  $("url").value = state.settings.last_url || "";
+  switchMode(state.mode);
+}
+
+function renderQueue() {
+  const box = $("queue-list");
+  if (!state.queue.length) { box.textContent = tr("queueEmpty"); return; }
+  box.innerHTML = state.queue.map((job, i) => `<div>${i + 1}. [${job.mode}] ${escapeHtml(job.url)}</div>`).join("");
+}
+
+async function runQueueItem(job) {
+  const result = await api.download(job.url, job.config);
+  if (!result || !result.ok) throw new Error(result ? result.error : "unknown error");
+  // čekáme na dokončení / chybu přes globální polling stav
+  await new Promise((resolve, reject) => {
+    const check = setInterval(() => {
+      if (lastState.done_rev > state.lastDoneRev) { clearInterval(check); state.lastDoneRev = lastState.done_rev; resolve(); }
+      else if (lastState.error_rev > state.lastErrorRev) { clearInterval(check); state.lastErrorRev = lastState.error_rev; reject(new Error(lastState.error)); }
+    }, 300);
+  });
+}
+
+let lastState = { done_rev: 0, error_rev: 0 };
+
+async function pollLoop() {
+  try {
+    const snapshot = await api.poll();
+    lastState = snapshot;
+    (snapshot.log || []).forEach(log);
+    if (snapshot.progress) {
+      $("progress").style.width = `${Math.max(0, Math.min(100, snapshot.progress.percent || 0))}%`;
+      text("progress-text", snapshot.progress.text || "");
+    }
+    setBusy(!!snapshot.busy);
+    if (!snapshot.ffmpeg_ok) $("ffmpeg-warning").classList.remove("hidden");
+    if (snapshot.info_rev > state.lastInfoRev) {
+      state.lastInfoRev = snapshot.info_rev;
+      if (snapshot.info) receiveInfo(snapshot.info);
+    }
+    if (snapshot.error_rev > state.lastErrorRev) {
+      state.lastErrorRev = snapshot.error_rev;
+      toast(snapshot.error, "error");
+    }
+    if (snapshot.done_rev > state.lastDoneRev) {
+      state.lastDoneRev = snapshot.done_rev;
+      $("progress").style.width = "100%";
+      toast(snapshot.done_message || tr("ready"));
+    }
+  } catch (_) {
+    // pywebview ještě nemusí být připravené - zkusíme znovu za chvíli
+  } finally {
+    setTimeout(pollLoop, 400);
+  }
+}
+
+document.querySelectorAll(".tab").forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
+document.querySelectorAll(".mode").forEach((btn) => btn.addEventListener("click", () => switchMode(btn.dataset.mode)));
+
+$("paste").addEventListener("click", async () => {
+  try {
+    const value = await navigator.clipboard.readText();
+    const match = value.match(/https?:\/\/\S+/i);
+    if (match) { $("url").value = match[0]; text("clipboard-state", tr("clipboardPasted")); $("clipboard-state").classList.remove("hidden"); }
+    else toast(tr("errNoClipboardUrl"), "error");
+  } catch (_) { toast(tr("errClipboard"), "error"); }
+});
+$("search").addEventListener("click", () => api.open_search($("url").value));
+$("fetch").addEventListener("click", async () => {
+  if (!$("url").value.trim()) return toast(tr("errNoUrl"), "error");
+  await saveSettings();
+  $("info-badge").textContent = tr("fetching");
+  const result = await api.fetch_info($("url").value, config());
+  if (result && !result.ok) toast(result.error, "error");
+});
+$("download").addEventListener("click", async () => {
+  if (!state.info) return toast(tr("errNoInfo"), "error");
+  await saveSettings();
+  $("progress").style.width = "0%";
+  switchTab("logs");
+  const result = await api.download($("url").value, config());
+  if (result && !result.ok) toast(result.error, "error");
+});
+$("browse-outdir").addEventListener("click", async () => { const p = await api.select_path("directory"); if (p) { $("outdir").value = p; saveSettings(); } });
+$("browse-cookie").addEventListener("click", async () => { const p = await api.select_path("file"); if (p) $("cookie-path").value = p; });
+$("browse-ffmpeg").addEventListener("click", async () => { const p = await api.select_path("file"); if (p) $("ffmpeg-file").value = p; });
+$("convert").addEventListener("click", async () => {
+  if (!$("ffmpeg-file").value) return toast(tr("errNoSource"), "error");
+  switchTab("logs");
+  const result = await api.convert_file($("ffmpeg-file").value, $("ffmpeg-target").value);
+  if (result && !result.ok) toast(result.error, "error");
+});
+$("update-ytdlp").addEventListener("click", async () => {
+  switchTab("logs");
+  const result = await api.update_ytdlp();
+  if (result && !result.ok) toast(result.error, "error");
+});
+$("queue-add").addEventListener("click", async () => {
+  if (!$("url").value.trim()) return toast(tr("errNoUrl"), "error");
+  if (!state.info) return toast(tr("errNoInfo"), "error");
+  await saveSettings();
+  state.queue.push({ url: $("url").value, mode: state.mode, config: config() });
+  renderQueue();
+  toast(tr("queueAdded"));
+});
+$("queue-run").addEventListener("click", async () => {
+  if (!state.queue.length) return toast(tr("queueEmptyToast"), "error");
+  switchTab("logs");
+  const jobs = [...state.queue];
+  state.queue = [];
+  renderQueue();
+  for (const job of jobs) {
+    try { await runQueueItem(job); } catch (e) { toast(String(e.message || e), "error"); }
+  }
+});
+$("queue-clear").addEventListener("click", () => { state.queue = []; renderQueue(); });
+
+$("appearance").addEventListener("change", () => { document.documentElement.classList.toggle("dark", $("appearance").value !== "light"); saveSettings(); });
+$("language").addEventListener("change", () => { applyLanguage(); renderOptions(); renderQueue(); saveSettings(); });
+["platform", "playlist", "cookie-path", "browser", "rename", "ratelimit"].forEach((id) => $(id).addEventListener("change", saveSettings));
+document.querySelectorAll('input[name="cookie-mode"]').forEach((input) => input.addEventListener("change", saveSettings));
+window.addEventListener("beforeunload", () => { try { api.save_settings(collectSettings()); } catch (_) {} });
+
+async function initApp() {
+  const settings = await api.get_settings();
+  applySettings(settings);
+  renderQueue();
+  try {
+    const clipboard = await navigator.clipboard.readText();
+    if (!$("url").value && /^https?:\/\/\S+/i.test(clipboard || "")) $("url").value = clipboard.trim();
+  } catch (_) {}
+  pollLoop();
+}
+</script>
+</body>
+</html>
