@@ -36,27 +36,28 @@
 <div id="install-gate" class="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center gap-6 p-6 text-center">
   <div class="grid h-16 w-16 place-items-center rounded-3xl bg-indigo-500/15 text-4xl shadow-glow">⚡</div>
   <div>
-    <h1 class="mb-2 text-2xl font-bold">Lokální služba nenalezena</h1>
+    <h1 data-i18n="gateTitle" class="mb-2 text-2xl font-bold">Local service not found</h1>
     <p class="text-sm text-gray-400">
-      Tahle stránka potřebuje malou lokální službu běžící na tvém počítači, která umí mluvit s yt-dlp.
-      Nic se neposílá nikam ven - běží to jen u tebe na <code class="rounded bg-black/40 px-1">127.0.0.1</code>.
+      <span data-i18n="gateDescPart1">This page needs a small local service running on your computer that can talk to yt-dlp. Nothing is sent anywhere else - it only runs on your machine at</span>
+      <code class="rounded bg-black/40 px-1">127.0.0.1</code>.
     </p>
   </div>
   <div class="glass w-full rounded-3xl p-6">
-    <p class="mb-4 text-xs uppercase tracking-widest text-gray-500">Stáhnout a nainstalovat</p>
+    <p data-i18n="gateDownloadLabel" class="mb-4 text-xs uppercase tracking-widest text-gray-500">Download and install</p>
     <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
-      <!-- TODO: az bude hotovy instalator, nahrad "#" skutecnymi odkazy na GitHub Releases -->
+      <!-- TODO: once the installer is ready, replace "#" with real GitHub Releases links -->
       <a id="download-windows" href="#" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold transition hover:bg-indigo-500">🪟 Windows (setup.exe)</a>
       <a id="download-mac" href="#" class="rounded-xl border border-line bg-gray-800/60 px-5 py-3 text-sm font-medium transition hover:bg-gray-700">🍎 macOS</a>
       <a id="download-linux" href="#" class="rounded-xl border border-line bg-gray-800/60 px-5 py-3 text-sm font-medium transition hover:bg-gray-700">🐧 Linux</a>
     </div>
-    <p class="mt-4 text-xs text-gray-500">Instalátor zaregistruje službu, co běží na pozadí a startuje spolu s počítačem.</p>
+    <p data-i18n="gateInstallerNote" class="mt-4 text-xs text-gray-500">The installer registers a service that runs in the background and starts with your computer.</p>
   </div>
-  <button id="retry-detect" class="rounded-xl border border-line bg-gray-800/60 px-6 py-3 text-sm font-medium transition hover:bg-gray-700">
-    🔄 Už jsem nainstaloval/spustil - zkusit znovu
+  <button id="retry-detect" data-i18n="gateRetry" class="rounded-xl border border-line bg-gray-800/60 px-6 py-3 text-sm font-medium transition hover:bg-gray-700">
+    🔄 I already installed/started it - try again
   </button>
   <p id="detect-status" class="text-xs text-gray-600"></p>
 </div>
+
 
 <main id="app-root" class="hidden mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 p-5 md:p-8">
 
@@ -284,6 +285,22 @@ function detectOS() {
   return "unknown";
 }
 
+// Detekce jazyka čistě v prohlížeči (navigator.language), použitá NEŽ se
+// vůbec podaří spojit s lokální službou - takže ani "chybí lokální služba"
+// obrazovka se neukáže natvrdo v jednom jazyce. Zrcadlí stejnou logiku
+// jako detect_system_language() v ytdlp_core.py na desktopové straně.
+function detectBrowserLanguage() {
+  const supported = { cs: ["cs", "cz"], pl: ["pl"], fr: ["fr"], ja: ["ja"], en: ["en"] };
+  const candidates = [...(navigator.languages || []), navigator.language || ""].filter(Boolean);
+  for (const raw of candidates) {
+    const lc = raw.toLowerCase();
+    for (const code in supported) {
+      if (supported[code].some((prefix) => lc.startsWith(prefix))) return code;
+    }
+  }
+  return "en";
+}
+
 async function pingLocalService(timeoutMs = 900) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -300,7 +317,7 @@ async function pingLocalService(timeoutMs = 900) {
 
 async function boot() {
   const statusEl = document.getElementById("detect-status");
-  if (statusEl) statusEl.textContent = "Hledám lokální službu...";
+  if (statusEl) statusEl.textContent = tr("gateSearching");
   const info = await pingLocalService();
   if (info && info.ok) {
     document.getElementById("install-gate").classList.add("hidden");
@@ -309,7 +326,7 @@ async function boot() {
   } else {
     document.getElementById("install-gate").classList.remove("hidden");
     document.getElementById("app-root").classList.add("hidden");
-    if (statusEl) statusEl.textContent = "Služba neodpovídá na http://127.0.0.1:47831.";
+    if (statusEl) statusEl.textContent = tr("gateNotResponding");
     const os = detectOS();
     const highlight = { windows: "download-windows", mac: "download-mac", linux: "download-linux" }[os];
     if (highlight) document.getElementById(highlight).classList.add("ring-2", "ring-indigo-400");
@@ -317,6 +334,12 @@ async function boot() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Jazyk podle prohlížeče/OS nastavíme HNED, ještě před pokusem o spojení
+  // s lokální službou - i obrazovka "chybí lokální služba" tak vyjde ve
+  // správném jazyce. Jakmile se appka spojí se skutečnou lokální službou,
+  // initApp() -> applySettings() tohle případně přepíše uloženou volbou.
+  $("language").value = detectBrowserLanguage();
+  applyLanguage();
   const retryBtn = document.getElementById("retry-detect");
   if (retryBtn) retryBtn.addEventListener("click", boot);
   boot();
@@ -350,7 +373,14 @@ const translations = {
     ffmpegMissing:"FFmpeg nebyl nalezen v PATH. Slučování videa+audia, MP3/kontejner konverze a titulky do videa nebudou fungovat.",
     errNoUrl:"Vložte URL adresu.", errNoInfo:"Nejdříve načtěte informace.", errNoSource:"Vyberte zdrojový soubor.",
     errNoClipboardUrl:"Ve schránce není URL.", errClipboard:"Schránku nelze přečíst. Vložte URL ručně.",
-    clipboardPasted:"URL vložená ze schránky", queueAdded:"Přidáno do fronty.", queueEmptyToast:"Fronta je prázdná."
+    clipboardPasted:"URL vložená ze schránky", queueAdded:"Přidáno do fronty.", queueEmptyToast:"Fronta je prázdná.",
+    gateTitle:"Lokální služba nenalezena",
+    gateDescPart1:"Tahle stránka potřebuje malou lokální službu běžící na tvém počítači, která umí mluvit s yt-dlp. Nic se neposílá nikam ven - běží to jen u tebe na",
+    gateDownloadLabel:"Stáhnout a nainstalovat",
+    gateInstallerNote:"Instalátor zaregistruje službu, co běží na pozadí a startuje spolu s počítačem.",
+    gateRetry:"🔄 Už jsem nainstaloval/spustil - zkusit znovu",
+    gateSearching:"Hledám lokální službu...",
+    gateNotResponding:"Služba neodpovídá na http://127.0.0.1:47831."
   },
   en: { title:"Universal Downloader", subtitle:"Modern yt-dlp interface",
     tabDownload:"Download", tabSettings:"Settings", tabTools:"Tools", tabLogs:"Logs",
@@ -379,7 +409,14 @@ const translations = {
     ffmpegMissing:"FFmpeg was not found in PATH. Merging video+audio, MP3/container conversion and embedding subtitles won't work.",
     errNoUrl:"Please enter a URL.", errNoInfo:"Fetch info first.", errNoSource:"Choose a source file.",
     errNoClipboardUrl:"No URL in the clipboard.", errClipboard:"Can't read clipboard. Paste the URL manually.",
-    clipboardPasted:"URL pasted from clipboard", queueAdded:"Added to queue.", queueEmptyToast:"Queue is empty."
+    clipboardPasted:"URL pasted from clipboard", queueAdded:"Added to queue.", queueEmptyToast:"Queue is empty.",
+    gateTitle:"Local service not found",
+    gateDescPart1:"This page needs a small local service running on your computer that can talk to yt-dlp. Nothing is sent anywhere else - it only runs on your machine at",
+    gateDownloadLabel:"Download and install",
+    gateInstallerNote:"The installer registers a service that runs in the background and starts with your computer.",
+    gateRetry:"🔄 I already installed/started it - try again",
+    gateSearching:"Looking for the local service...",
+    gateNotResponding:"The service isn't responding at http://127.0.0.1:47831."
   },
   pl: { title:"Universal Downloader", subtitle:"Nowoczesny interfejs dla yt-dlp",
     tabDownload:"Pobieranie", tabSettings:"Ustawienia", tabTools:"Narzędzia", tabLogs:"Logi",
@@ -408,7 +445,14 @@ const translations = {
     ffmpegMissing:"Nie znaleziono ffmpeg w PATH. Łączenie wideo+audio, konwersja MP3/kontenera i osadzanie napisów nie będą działać.",
     errNoUrl:"Podaj adres URL.", errNoInfo:"Najpierw pobierz informacje.", errNoSource:"Wybierz plik źródłowy.",
     errNoClipboardUrl:"Brak URL w schowku.", errClipboard:"Nie można odczytać schowka. Wklej URL ręcznie.",
-    clipboardPasted:"URL wklejony ze schowka", queueAdded:"Dodano do kolejki.", queueEmptyToast:"Kolejka jest pusta."
+    clipboardPasted:"URL wklejony ze schowka", queueAdded:"Dodano do kolejki.", queueEmptyToast:"Kolejka jest pusta.",
+    gateTitle:"Nie znaleziono usługi lokalnej",
+    gateDescPart1:"Ta strona potrzebuje małej lokalnej usługi działającej na Twoim komputerze, która potrafi rozmawiać z yt-dlp. Nic nie jest wysyłane nigdzie indziej - działa to tylko u Ciebie na",
+    gateDownloadLabel:"Pobierz i zainstaluj",
+    gateInstallerNote:"Instalator zarejestruje usługę, która działa w tle i uruchamia się razem z komputerem.",
+    gateRetry:"🔄 Już zainstalowałem/uruchomiłem - spróbuj ponownie",
+    gateSearching:"Szukam lokalnej usługi...",
+    gateNotResponding:"Usługa nie odpowiada pod adresem http://127.0.0.1:47831."
   },
   fr: { title:"Universal Downloader", subtitle:"Interface moderne pour yt-dlp",
     tabDownload:"Téléchargement", tabSettings:"Paramètres", tabTools:"Outils", tabLogs:"Journal",
@@ -437,7 +481,14 @@ const translations = {
     ffmpegMissing:"FFmpeg introuvable dans le PATH. La fusion vidéo+audio, la conversion MP3/conteneur et l'intégration des sous-titres ne fonctionneront pas.",
     errNoUrl:"Merci d'entrer une URL.", errNoInfo:"Charge d'abord les infos.", errNoSource:"Choisis un fichier source.",
     errNoClipboardUrl:"Pas d'URL dans le presse-papiers.", errClipboard:"Presse-papiers illisible. Colle l'URL manuellement.",
-    clipboardPasted:"URL collée depuis le presse-papiers", queueAdded:"Ajouté à la file.", queueEmptyToast:"La file est vide."
+    clipboardPasted:"URL collée depuis le presse-papiers", queueAdded:"Ajouté à la file.", queueEmptyToast:"La file est vide.",
+    gateTitle:"Service local introuvable",
+    gateDescPart1:"Cette page a besoin d'un petit service local exécuté sur ton ordinateur, capable de communiquer avec yt-dlp. Rien n'est envoyé ailleurs - ça tourne uniquement chez toi sur",
+    gateDownloadLabel:"Télécharger et installer",
+    gateInstallerNote:"L'installateur enregistre un service qui tourne en arrière-plan et démarre avec ton ordinateur.",
+    gateRetry:"🔄 Je l'ai déjà installé/lancé - réessayer",
+    gateSearching:"Recherche du service local...",
+    gateNotResponding:"Le service ne répond pas sur http://127.0.0.1:47831."
   },
   ja: { title:"Universal Downloader", subtitle:"yt-dlpのモダンなインターフェース",
     tabDownload:"ダウンロード", tabSettings:"設定", tabTools:"ツール", tabLogs:"ログ",
@@ -466,7 +517,14 @@ const translations = {
     ffmpegMissing:"PATHにffmpegが見つかりません。動画+音声の結合、MP3/コンテナ変換、字幕の埋め込みが機能しません。",
     errNoUrl:"URLを入力してください。", errNoInfo:"先に情報を取得してください。", errNoSource:"元のファイルを選択してください。",
     errNoClipboardUrl:"クリップボードにURLがありません。", errClipboard:"クリップボードを読み取れません。URLを手動で貼り付けてください。",
-    clipboardPasted:"クリップボードからURLを貼り付けました", queueAdded:"キューに追加しました。", queueEmptyToast:"キューは空です。"
+    clipboardPasted:"クリップボードからURLを貼り付けました", queueAdded:"キューに追加しました。", queueEmptyToast:"キューは空です。",
+    gateTitle:"ローカルサービスが見つかりません",
+    gateDescPart1:"このページには、yt-dlpと通信できる、あなたのパソコン上で動く小さなローカルサービスが必要です。外部には何も送信されません - 動作するのはあなたのマシン上の",
+    gateDownloadLabel:"ダウンロードしてインストール",
+    gateInstallerNote:"インストーラーはバックグラウンドで動作し、パソコンの起動と同時に立ち上がるサービスを登録します。",
+    gateRetry:"🔄 すでにインストール/起動しました - 再試行",
+    gateSearching:"ローカルサービスを検索中...",
+    gateNotResponding:"サービスが http://127.0.0.1:47831 で応答していません。"
   }
 };
 
@@ -732,7 +790,7 @@ function setBusy(value) {
 
 function applySettings(settings) {
   state.settings = settings || {};
-  $("language").value = state.settings.language || "cs";
+  $("language").value = state.settings.language || detectBrowserLanguage();
   applyLanguage();
   $("appearance").value = state.settings.appearance || "dark";
   document.documentElement.classList.toggle("dark", $("appearance").value !== "light");
