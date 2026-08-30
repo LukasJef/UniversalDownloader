@@ -821,7 +821,18 @@ api = Api()
 # Cesta k index.html - stejný soubor, co je hostovaný na udl.moviora.win, teď
 # ho obsluhujeme i lokálně, aby ho mohlo natáhnout i vlastní desktopové okno
 # appky (ytdlp_app.py) - jedno UI pro web i desktop.
-_INDEX_HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+def _resource_path(filename):
+    """Vrátí správnou cestu k přibalenému souboru, ať už appka běží ze
+    zdrojáku, nebo jako PyInstaller --onefile .exe. Onefile build totiž
+    přibalené datové soubory (jako index.html) při startu rozbalí do
+    dočasné složky (sys._MEIPASS) - NE do složky, kde leží .py soubor,
+    takže cesta odvozená jen z __file__ by v zabaleném .exe selhala."""
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, filename)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+
+
+_INDEX_HTML_PATH = _resource_path("index.html")
 try:
     with open(_INDEX_HTML_PATH, "r", encoding="utf-8") as _handle:
         _INDEX_HTML = _handle.read()
