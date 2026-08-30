@@ -1,4 +1,4 @@
-name: Build tray app (Windows / macOS / Linux)
+name: Build ytdlp-app (Windows / macOS / Linux)
 
 # Spustí se při pushnutí tagu ve tvaru v1.0.0, v1.2.3 apod.
 #   git tag v1.0.0
@@ -18,23 +18,23 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: ytdlp-tray-windows
+            artifact_name: ytdlp-app-windows
           - os: macos-latest
-            artifact_name: ytdlp-tray-macos
+            artifact_name: ytdlp-app-macos
           - os: ubuntu-latest
-            artifact_name: ytdlp-tray-linux
+            artifact_name: ytdlp-app-linux
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
-      # --- Linux potřebuje systémové balíčky pro tkinter a tray ikonu (GTK/AppIndicator) ---
+      # --- Linux potřebuje systémové balíčky pro WebKitGTK (pywebview) a tray ikonu (AppIndicator) ---
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 ffmpeg
+          sudo apt-get install -y python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-ayatanaappindicator3-0.1 ffmpeg
 
       - name: Install macOS system dependencies
         if: runner.os == 'macOS'
@@ -56,7 +56,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Build with PyInstaller
-        run: pyinstaller --onefile --windowed --name ytdlp-tray ytdlp_tray_app.py
+        run: pyinstaller --onefile --windowed --name ytdlp-app ytdlp_app.py
 
       - name: List dist output (debug)
         run: ls -la dist || dir dist
@@ -68,28 +68,28 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd dist
-          if [ -d "ytdlp-tray.app" ]; then
-            zip -r ../ytdlp-tray-macos.zip ytdlp-tray.app
+          if [ -d "ytdlp-app.app" ]; then
+            zip -r ../ytdlp-app-macos.zip ytdlp-app.app
           else
-            zip -j ../ytdlp-tray-macos.zip ytdlp-tray
+            zip -j ../ytdlp-app-macos.zip ytdlp-app
           fi
 
       - name: Package Linux output
         if: runner.os == 'Linux'
         run: |
-          chmod +x dist/ytdlp-tray
-          cd dist && zip -j ../ytdlp-tray-linux.zip ytdlp-tray
+          chmod +x dist/ytdlp-app
+          cd dist && zip -j ../ytdlp-app-linux.zip ytdlp-app
 
       - name: Package Windows output
         if: runner.os == 'Windows'
         shell: bash
-        run: cd dist && 7z a ../ytdlp-tray-windows.zip ytdlp-tray.exe
+        run: cd dist && 7z a ../ytdlp-app-windows.zip ytdlp-app.exe
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ytdlp-tray-*.zip
+          path: ytdlp-app-*.zip
           if-no-files-found: error
 
   release:
