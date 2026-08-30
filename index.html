@@ -343,6 +343,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const retryBtn = document.getElementById("retry-detect");
   if (retryBtn) retryBtn.addEventListener("click", boot);
   boot();
+
+  // Když desktopová appka (ytdlp_app.py) otevře okno s ?tab=logs (např. přes
+  // "Open log" v tray menu), rovnou po startu přepneme na tu záložku.
+  const initialTab = new URLSearchParams(location.search).get("tab");
+  if (initialTab) switchTab(initialTab);
 });
 
 const translations = {
