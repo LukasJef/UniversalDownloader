@@ -55,8 +55,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Build with PyInstaller
-        run: pyinstaller --onefile --windowed --name ytdlp-app ytdlp_app.py
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: pyinstaller --onefile --windowed --name ytdlp-app --add-data "index.html;." ytdlp_app.py
+
+      - name: Build with PyInstaller (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: pyinstaller --onefile --windowed --name ytdlp-app --add-data "index.html:." ytdlp_app.py
 
       - name: List dist output (debug)
         run: ls -la dist || dir dist
