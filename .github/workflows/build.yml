@@ -1,4 +1,4 @@
-name: Build ytdlp-app (Windows / macOS / Linux)
+name: Build UniversalDownloader (Windows / macOS / Linux)
 
 # Spustí se při pushnutí tagu ve tvaru v1.0.0, v1.2.3 apod.
 #   git tag v1.0.0
@@ -18,11 +18,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: ytdlp-app-windows
+            artifact_name: UniversalDownloader-windows
           - os: macos-latest
-            artifact_name: ytdlp-app-macos
+            artifact_name: UniversalDownloader-macos
           - os: ubuntu-latest
-            artifact_name: ytdlp-app-linux
+            artifact_name: UniversalDownloader-linux
 
     runs-on: ${{ matrix.os }}
 
@@ -57,11 +57,11 @@ jobs:
 
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
-        run: pyinstaller --onefile --windowed --name ytdlp-app --add-data "index.html;." ytdlp_app.py
+        run: pyinstaller --onefile --windowed --name UniversalDownloader --add-data "index.html;." ytdlp_app.py
 
       - name: Build with PyInstaller (macOS/Linux)
         if: runner.os != 'Windows'
-        run: pyinstaller --onefile --windowed --name ytdlp-app --add-data "index.html:." ytdlp_app.py
+        run: pyinstaller --onefile --windowed --name UniversalDownloader --add-data "index.html:." ytdlp_app.py
 
       - name: List dist output (debug)
         run: ls -la dist || dir dist
@@ -73,28 +73,28 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd dist
-          if [ -d "ytdlp-app.app" ]; then
-            zip -r ../ytdlp-app-macos.zip ytdlp-app.app
+          if [ -d "UniversalDownloader.app" ]; then
+            zip -r ../UniversalDownloader-macos.zip UniversalDownloader.app
           else
-            zip -j ../ytdlp-app-macos.zip ytdlp-app
+            zip -j ../UniversalDownloader-macos.zip UniversalDownloader
           fi
 
       - name: Package Linux output
         if: runner.os == 'Linux'
         run: |
-          chmod +x dist/ytdlp-app
-          cd dist && zip -j ../ytdlp-app-linux.zip ytdlp-app
+          chmod +x dist/UniversalDownloader
+          cd dist && zip -j ../UniversalDownloader-linux.zip UniversalDownloader
 
       - name: Package Windows output
         if: runner.os == 'Windows'
         shell: bash
-        run: cd dist && 7z a ../ytdlp-app-windows.zip ytdlp-app.exe
+        run: cd dist && 7z a ../UniversalDownloader-windows.zip UniversalDownloader.exe
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ytdlp-app-*.zip
+          path: UniversalDownloader-*.zip
           if-no-files-found: error
 
   release:
