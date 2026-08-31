@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Universal Downloader</title>
+<title>UniversalDownloader</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -65,7 +65,7 @@
     <div class="flex items-center gap-3">
       <div class="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-500/15 text-2xl shadow-glow">⚡</div>
       <div>
-        <h1 data-i18n="title" class="text-2xl font-bold tracking-tight">Universal Downloader</h1>
+        <h1 data-i18n="title" class="text-2xl font-bold tracking-tight">UniversalDownloader</h1>
         <p data-i18n="subtitle" class="text-xs text-gray-500">Moderní rozhraní pro yt-dlp</p>
       </div>
     </div>
@@ -333,6 +333,8 @@ async function boot() {
   }
 }
 
+let pendingSharedUrl = null;
+
 document.addEventListener("DOMContentLoaded", () => {
   // Jazyk podle prohlížeče/OS nastavíme HNED, ještě před pokusem o spojení
   // s lokální službou - i obrazovka "chybí lokální služba" tak vyjde ve
@@ -344,14 +346,22 @@ document.addEventListener("DOMContentLoaded", () => {
   if (retryBtn) retryBtn.addEventListener("click", boot);
   boot();
 
+  const params = new URLSearchParams(location.search);
+
   // Když desktopová appka (ytdlp_app.py) otevře okno s ?tab=logs (např. přes
   // "Open log" v tray menu), rovnou po startu přepneme na tu záložku.
-  const initialTab = new URLSearchParams(location.search).get("tab");
+  const initialTab = params.get("tab");
   if (initialTab) switchTab(initialTab);
+
+  // Sdílený odkaz z Androidu (Sdílet -> UniversalDownloader) nebo z desktopu
+  // přijde jako ?url=... - uschováme si ho, initApp() ho pak vyplní AŽ PO
+  // applySettings(), ať ho uložené "last_url" nastavení nepřepíše.
+  const sharedUrl = params.get("url");
+  if (sharedUrl) pendingSharedUrl = sharedUrl;
 });
 
 const translations = {
-  cs: { title:"Universal Downloader", subtitle:"Moderní rozhraní pro yt-dlp",
+  cs: { title:"UniversalDownloader", subtitle:"Moderní rozhraní pro yt-dlp",
     tabDownload:"Stahování", tabSettings:"Nastavení", tabTools:"Nástroje", tabLogs:"Logy",
     urlLabel:"URL adresa", paste:"📋 Vložit", findManually:"🔎 Najít ručně", fetch:"Načíst info",
     modeTitle:"Mód stahování", playlist:"Playlist", video:"Video", audio:"Audio", subtitles:"Titulky", thumbnail:"Náhled",
@@ -387,7 +397,7 @@ const translations = {
     gateSearching:"Hledám lokální službu...",
     gateNotResponding:"Služba neodpovídá na http://127.0.0.1:47831."
   },
-  en: { title:"Universal Downloader", subtitle:"Modern yt-dlp interface",
+  en: { title:"UniversalDownloader", subtitle:"Modern yt-dlp interface",
     tabDownload:"Download", tabSettings:"Settings", tabTools:"Tools", tabLogs:"Logs",
     urlLabel:"URL address", paste:"📋 Paste", findManually:"🔎 Find manually", fetch:"Fetch info",
     modeTitle:"Download mode", playlist:"Playlist", video:"Video", audio:"Audio", subtitles:"Subtitles", thumbnail:"Thumbnail",
@@ -423,7 +433,7 @@ const translations = {
     gateSearching:"Looking for the local service...",
     gateNotResponding:"The service isn't responding at http://127.0.0.1:47831."
   },
-  pl: { title:"Universal Downloader", subtitle:"Nowoczesny interfejs dla yt-dlp",
+  pl: { title:"UniversalDownloader", subtitle:"Nowoczesny interfejs dla yt-dlp",
     tabDownload:"Pobieranie", tabSettings:"Ustawienia", tabTools:"Narzędzia", tabLogs:"Logi",
     urlLabel:"Adres URL", paste:"📋 Wklej", findManually:"🔎 Znajdź ręcznie", fetch:"Pobierz informacje",
     modeTitle:"Tryb pobierania", playlist:"Playlista", video:"Wideo", audio:"Audio", subtitles:"Napisy", thumbnail:"Miniatura",
@@ -459,7 +469,7 @@ const translations = {
     gateSearching:"Szukam lokalnej usługi...",
     gateNotResponding:"Usługa nie odpowiada pod adresem http://127.0.0.1:47831."
   },
-  fr: { title:"Universal Downloader", subtitle:"Interface moderne pour yt-dlp",
+  fr: { title:"UniversalDownloader", subtitle:"Interface moderne pour yt-dlp",
     tabDownload:"Téléchargement", tabSettings:"Paramètres", tabTools:"Outils", tabLogs:"Journal",
     urlLabel:"Adresse URL", paste:"📋 Coller", findManually:"🔎 Trouver manuellement", fetch:"Charger les infos",
     modeTitle:"Mode de téléchargement", playlist:"Playlist", video:"Vidéo", audio:"Audio", subtitles:"Sous-titres", thumbnail:"Miniature",
@@ -495,7 +505,7 @@ const translations = {
     gateSearching:"Recherche du service local...",
     gateNotResponding:"Le service ne répond pas sur http://127.0.0.1:47831."
   },
-  ja: { title:"Universal Downloader", subtitle:"yt-dlpのモダンなインターフェース",
+  ja: { title:"UniversalDownloader", subtitle:"yt-dlpのモダンなインターフェース",
     tabDownload:"ダウンロード", tabSettings:"設定", tabTools:"ツール", tabLogs:"ログ",
     urlLabel:"URLアドレス", paste:"📋 貼り付け", findManually:"🔎 手動で探す", fetch:"情報を取得",
     modeTitle:"ダウンロードモード", playlist:"プレイリスト", video:"動画", audio:"音声", subtitles:"字幕", thumbnail:"サムネイル",
@@ -935,10 +945,20 @@ async function initApp() {
   const settings = await api.get_settings();
   applySettings(settings);
   renderQueue();
-  try {
-    const clipboard = await navigator.clipboard.readText();
-    if (!$("url").value && /^https?:\/\/\S+/i.test(clipboard || "")) $("url").value = clipboard.trim();
-  } catch (_) {}
+  if (pendingSharedUrl) {
+    // Sdílený odkaz má přednost před posledním uloženým URL a rovnou
+    // zkusíme načíst info, ať uživatel po sdílení nemusí nic dalšího klikat.
+    $("url").value = pendingSharedUrl;
+    pendingSharedUrl = null;
+    $("info-badge").textContent = tr("fetching");
+    const result = await api.fetch_info($("url").value, config());
+    if (result && !result.ok) toast(result.error, "error");
+  } else {
+    try {
+      const clipboard = await navigator.clipboard.readText();
+      if (!$("url").value && /^https?:\/\/\S+/i.test(clipboard || "")) $("url").value = clipboard.trim();
+    } catch (_) {}
+  }
   pollLoop();
 }
 </script>

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ytdlp_app.py - single unified cross-platform app: local yt-dlp service +
-tray icon + on-demand desktop window, all in one process and one file.
+ytdlp_app.py - UniversalDownloader (UDL): single unified cross-platform app -
+local yt-dlp service + tray icon + on-demand desktop window, all in one
+process and one file.
 
 Same local server that answers the website (udl.moviora.win) also serves
 this app's own UI - the desktop window is just another client of
@@ -39,7 +40,7 @@ Run:
     python ytdlp_app.py
 
 Build to .exe:
-    pyinstaller --onefile --windowed --name ytdlp-app ytdlp_app.py
+    pyinstaller --onefile --windowed --name UniversalDownloader ytdlp_app.py
 """
 
 # =============================================================================
@@ -76,7 +77,7 @@ except ImportError:
     yt_dlp = None
 
 
-APP_NAME = "ytdlp-gui"
+APP_NAME = "UniversalDownloader"
 BROWSERS = ["chrome", "firefox", "edge", "brave", "opera", "vivaldi", "chromium", "safari"]
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 MAX_LOG_LINES = 400
@@ -765,7 +766,7 @@ class Api:
                 raise RuntimeError(
                     "Tohle je samostatně zabalená aplikace (.exe) - yt-dlp je v ní zamrzlý jako "
                     "součást programu a nejde takto aktualizovat. Stáhni si novější verzi aplikace, "
-                    "jakmile vyjde. (Pokud appku spouštíš přímo přes 'python ytdlp_gui.py' ze zdrojáku, "
+                    "jakmile vyjde. (Pokud appku spouštíš přímo přes 'python ytdlp_app.py' ze zdrojáku, "
                     "tlačítko funguje normálně.)"
                 )
             self._log("Aktualizuji yt-dlp...")
@@ -837,7 +838,7 @@ try:
     with open(_INDEX_HTML_PATH, "r", encoding="utf-8") as _handle:
         _INDEX_HTML = _handle.read()
 except OSError:
-    _INDEX_HTML = "<h1>index.html nebyl nalezen vedle ytdlp_local_server.py</h1>"
+    _INDEX_HTML = "<h1>index.html nebyl nalezen vedle ytdlp_app.py</h1>"
 
 
 # --------------------------------------------------------------------------- #
@@ -930,9 +931,9 @@ def update_ytdlp():
 # 3) DESKTOP SHELL - autostart, tray icon, on-demand window, global hotkey
 # =============================================================================
 
-APP_TITLE = "yt-dlp"
-RUN_KEY_NAME = "YtDlpApp"
-BUNDLE_ID = "win.moviora.ytdlp-app"
+APP_TITLE = "UniversalDownloader"
+RUN_KEY_NAME = "UniversalDownloader"
+BUNDLE_ID = "win.moviora.udl"
 HOTKEY = "<cmd>+<shift>+d"  # Win+Shift+D on Windows/Linux, Cmd+Shift+D on macOS
 
 SYSTEM = platform.system()
@@ -961,7 +962,7 @@ def _macos_launch_agent_path():
 
 def _linux_autostart_path():
     xdg_config = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-    return os.path.join(xdg_config, "autostart", "ytdlp-app.desktop")
+    return os.path.join(xdg_config, "autostart", "udl.desktop")
 
 
 def is_autostart_enabled():
@@ -1147,7 +1148,7 @@ def build_tray(window_manager, server_thread, hotkey_listener, anchor_window):
         pystray.MenuItem("Run with OS", on_toggle_autostart, checked=lambda item: is_autostart_enabled()),
         pystray.MenuItem("Exit", on_exit),
     )
-    return pystray.Icon("ytdlp-app", make_icon_image(), APP_TITLE, menu)
+    return pystray.Icon("udl", make_icon_image(), APP_TITLE, menu)
 
 
 def main():
