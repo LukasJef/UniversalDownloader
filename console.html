@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UniversalDownloader — Console</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    background: #090b10; color: #e5e7eb;
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px; border-bottom: 1px solid #252b3a;
+    background: #121621;
+  }
+  header h1 { font-size: 14px; font-weight: 600; margin: 0; color: #a5b4fc; }
+  header .hint { font-size: 11px; color: #6b7280; }
+  header button {
+    background: rgba(255,255,255,.06); border: 1px solid #252b3a; color: #e5e7eb;
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+  }
+  header button:hover { background: rgba(255,255,255,.12); }
+  #output {
+    flex: 1; overflow-y: auto; margin: 0; padding: 14px 18px;
+    white-space: pre-wrap; word-break: break-word;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12.5px; line-height: 1.5; color: #9ca3af;
+  }
+  #output .err { color: #fca5a5; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Console</h1>
+    <span class="hint">raw stdout/stderr - not for regular use</span>
+  </div>
+  <button id="pause">Pause</button>
+</header>
+<pre id="output">Loading...</pre>
+<script>
+const LOCAL_BASE = "http://127.0.0.1:47831";
+const output = document.getElementById("output");
+const pauseBtn = document.getElementById("pause");
+let paused = false;
+let autoscroll = true;
+
+pauseBtn.addEventListener("click", () => {
+  paused = !paused;
+  pauseBtn.textContent = paused ? "Resume" : "Pause";
+});
+
+output.addEventListener("scroll", () => {
+  const atBottom = output.scrollHeight - output.scrollTop - output.clientHeight < 40;
+  autoscroll = atBottom;
+});
+
+async function poll() {
+  if (!paused) {
+    try {
+      const res = await fetch(LOCAL_BASE + "/api/console_log");
+      if (res.ok) {
+        const data = await res.json();
+        output.textContent = data.text || "(empty)";
+        if (autoscroll) output.scrollTop = output.scrollHeight;
+      }
+    } catch (_) {
+      output.textContent = "Local service not reachable at " + LOCAL_BASE;
+    }
+  }
+  setTimeout(poll, 1000);
+}
+poll();
+</script>
+</body>
+</html>

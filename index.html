@@ -369,7 +369,7 @@ const translations = {
     fetching:"Načítám…", infoLoaded:"Info načteno", channel:"Kanál", duration:"Délka", playlistCount:"Playlist",
     optionsTitle:"Možnosti stahování", fetchFirst:"Nejdříve načtěte info", optionsReady:"Volby jsou připravené",
     optionsPlaceholder:"Nejdříve načtěte informace o médiu.",
-    qualityLabel:"Kvalita videa", best:"Nejlepší dostupná", dubLabel:"Jazyk zvukové stopy",
+    qualityLabel:"Kvalita videa", best:"Nejlepší dostupná", dubLabel:"Jazyk zvukové stopy", allAudioTracks:"Všechny zvukové stopy",
     containerLabel:"Kontejner (ffmpeg)", containerAuto:"auto (bez převodu)", embedSubs:"Vložit titulky do videa",
     audioTrackLabel:"Zvuková stopa", convertLabel:"Převést do formátu (ffmpeg)", convertNone:"beze změny",
     subSourceLabel:"Zdroj titulků", subOriginal:"Originální", subAuto:"Automaticky generované",
@@ -405,7 +405,7 @@ const translations = {
     fetching:"Fetching…", infoLoaded:"Info loaded", channel:"Channel", duration:"Duration", playlistCount:"Playlist",
     optionsTitle:"Download options", fetchFirst:"Fetch info first", optionsReady:"Options ready",
     optionsPlaceholder:"Fetch media info first.",
-    qualityLabel:"Video quality", best:"Best available", dubLabel:"Audio track language",
+    qualityLabel:"Video quality", best:"Best available", dubLabel:"Audio track language", allAudioTracks:"All audio tracks",
     containerLabel:"Container (ffmpeg)", containerAuto:"auto (no conversion)", embedSubs:"Embed subtitles into video",
     audioTrackLabel:"Audio track", convertLabel:"Convert to format (ffmpeg)", convertNone:"no conversion",
     subSourceLabel:"Subtitle source", subOriginal:"Original", subAuto:"Auto-generated",
@@ -441,7 +441,7 @@ const translations = {
     fetching:"Pobieram…", infoLoaded:"Informacje pobrane", channel:"Kanał", duration:"Czas trwania", playlistCount:"Playlista",
     optionsTitle:"Opcje pobierania", fetchFirst:"Najpierw pobierz informacje", optionsReady:"Opcje gotowe",
     optionsPlaceholder:"Najpierw pobierz informacje o multimediach.",
-    qualityLabel:"Jakość wideo", best:"Najlepsza dostępna", dubLabel:"Język ścieżki dźwiękowej",
+    qualityLabel:"Jakość wideo", best:"Najlepsza dostępna", dubLabel:"Język ścieżki dźwiękowej", allAudioTracks:"Wszystkie ścieżki dźwiękowe",
     containerLabel:"Kontener (ffmpeg)", containerAuto:"auto (bez konwersji)", embedSubs:"Osadź napisy w wideo",
     audioTrackLabel:"Ścieżka dźwiękowa", convertLabel:"Konwertuj do formatu (ffmpeg)", convertNone:"bez zmian",
     subSourceLabel:"Źródło napisów", subOriginal:"Oryginalne", subAuto:"Automatycznie generowane",
@@ -477,7 +477,7 @@ const translations = {
     fetching:"Chargement…", infoLoaded:"Infos chargées", channel:"Chaîne", duration:"Durée", playlistCount:"Playlist",
     optionsTitle:"Options de téléchargement", fetchFirst:"Charge d'abord les infos", optionsReady:"Options prêtes",
     optionsPlaceholder:"Charge d'abord les infos du média.",
-    qualityLabel:"Qualité vidéo", best:"Meilleure disponible", dubLabel:"Langue de la piste audio",
+    qualityLabel:"Qualité vidéo", best:"Meilleure disponible", dubLabel:"Langue de la piste audio", allAudioTracks:"Toutes les pistes audio",
     containerLabel:"Conteneur (ffmpeg)", containerAuto:"auto (sans conversion)", embedSubs:"Intégrer les sous-titres à la vidéo",
     audioTrackLabel:"Piste audio", convertLabel:"Convertir au format (ffmpeg)", convertNone:"sans changement",
     subSourceLabel:"Source des sous-titres", subOriginal:"Originaux", subAuto:"Générés automatiquement",
@@ -513,7 +513,7 @@ const translations = {
     fetching:"取得中…", infoLoaded:"情報を取得しました", channel:"チャンネル", duration:"長さ", playlistCount:"プレイリスト",
     optionsTitle:"ダウンロードオプション", fetchFirst:"先に情報を取得してください", optionsReady:"オプション準備完了",
     optionsPlaceholder:"先にメディア情報を取得してください。",
-    qualityLabel:"動画の画質", best:"最高画質", dubLabel:"音声トラックの言語",
+    qualityLabel:"動画の画質", best:"最高画質", dubLabel:"音声トラックの言語", allAudioTracks:"すべての音声トラック",
     containerLabel:"コンテナ (ffmpeg)", containerAuto:"自動 (変換なし)", embedSubs:"字幕を動画に埋め込む",
     audioTrackLabel:"音声トラック", convertLabel:"変換先フォーマット (ffmpeg)", convertNone:"変換なし",
     subSourceLabel:"字幕のソース", subOriginal:"オリジナル", subAuto:"自動生成",
@@ -627,6 +627,7 @@ function renderOptions() {
       </label>
       <label class="block text-xs text-gray-400">${tr("dubLabel")}
         <select id="video-language" class="field mt-2 w-full rounded-xl px-3 py-3 text-sm">
+          ${languages.length > 1 ? `<option value="__all__">${tr("allAudioTracks")}</option>` : ""}
           ${(languages.length ? languages : ["default"]).map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("")}
         </select>
       </label>
@@ -645,9 +646,20 @@ function renderOptions() {
       const height = Number($("video-quality").value) || null;
       const lang = $("video-language").value;
       const vids = info.formats.filter(f => f.vcodec !== "none" && (!height || Number(f.height) === height));
-      const auds = info.formats.filter(f => f.acodec !== "none" && (lang === "default" || f.language === lang));
       const vSize = vids.reduce((best, f) => f.filesize && (!best || f.filesize > best) ? f.filesize : best, 0);
-      const aSize = auds.reduce((best, f) => f.filesize && (!best || f.filesize > best) ? f.filesize : best, 0);
+      let aSize = 0;
+      if (lang === "__all__") {
+        // scitame nejlepsi format KAZDEHO jazyka zvlast - stahujeme vsechny najednou
+        const byLang = {};
+        info.formats.filter(f => f.acodec !== "none").forEach(f => {
+          const key = f.language || "default";
+          if (f.filesize && (!byLang[key] || f.filesize > byLang[key])) byLang[key] = f.filesize;
+        });
+        aSize = Object.values(byLang).reduce((sum, s) => sum + s, 0);
+      } else {
+        const auds = info.formats.filter(f => f.acodec !== "none" && (lang === "default" || f.language === lang));
+        aSize = auds.reduce((best, f) => f.filesize && (!best || f.filesize > best) ? f.filesize : best, 0);
+      }
       const total = (vSize || 0) + (aSize || 0);
       $("video-size").textContent = total ? sizeLabel(total) : tr("sizeUnknown");
     };

@@ -1,9 +1,10 @@
-# UniversalDownloader | UDL
+# UniversalDownloader (UDL)
+
 A single cross-platform app that combines a local [yt-dlp](https://github.com/yt-dlp/yt-dlp) service, a system tray icon, and an on-demand desktop window — all in one process. The same local service also powers the companion web UI at **[udl.moviora.win](https://udl.moviora.win)**, so the desktop app and the website share one codebase and one interface.
 
 ## Features
 
-- **Video** — pick quality, audio/dub language, container (mp4/mkv/webm/avi), optional subtitle embedding
+- **Video** — pick quality, audio/dub language (or **embed all available audio tracks at once**, e.g. original + dubs), container (mp4/mkv/webm/avi), optional subtitle embedding
 - **Audio** — pick track/language, optional conversion (mp3/m4a/wav/flac/ogg) via ffmpeg
 - **Subtitles** — original or auto-generated, choice of format (best/srt/vtt)
 - **Thumbnails** — pick resolution, optional image conversion (jpg/png/webp) via ffmpeg
@@ -14,13 +15,14 @@ A single cross-platform app that combines a local [yt-dlp](https://github.com/yt
 - **Speed limit**, **FFmpeg file converter** tool, **update-check** for yt-dlp
 - **5 languages** (Czech, English, Polish, French, Japanese) — auto-detected from your system/browser, remembers a manual override
 - **Dark/light theme**
+- **Hidden diagnostic console** (`/console`) — raw stdout/stderr, useful for bug reports; not shown anywhere in the normal UI
 
 ## How it's put together
 
 `ytdlp_app.py` is a single file with three parts:
 
 1. **Engine** — settings, yt-dlp calls, ffmpeg conversions (`Api` class)
-2. **Local HTTP server** (Flask, `127.0.0.1` only) — exposes the engine over HTTP and serves `index.html`
+2. **Local HTTP server** (Flask, `127.0.0.1` only) — exposes the engine over HTTP and serves `index.html` / `console.html`
 3. **Desktop shell** — tray icon, on-demand window (pywebview), global hotkey, autostart
 
 The desktop window is just another client of `http://127.0.0.1:47831/` — exactly like a browser tab. That's what lets [udl.moviora.win](https://udl.moviora.win) talk to the same local service (with CORS locked down to that domain only) and share one frontend (`index.html`) with the desktop app.
@@ -32,7 +34,7 @@ The desktop window is just another client of `http://127.0.0.1:47831/` — exact
 | Left click | Open/focus the app window |
 | `Win`+`Shift`+`D` (`Cmd`+`Shift`+`D` on macOS) | Same as left click, works from anywhere |
 | Right click → **Open** | Open/focus the app window |
-| Right click → **Open log** | Open the app window on the Logs tab |
+| Right click → **Open Console** | Open the app window on the hidden `/console` page (raw stdout/stderr — for debugging, not everyday use) |
 | Right click → **Run with OS** | Toggle launching automatically at login |
 | Right click → **Exit** | Stop the local service and quit |
 
@@ -44,9 +46,9 @@ Closing the app window normally (the X button) just closes that window — the s
 
 Grab the latest build for your OS from the [Releases](../../releases) page.
 
-- **Windows** — unzip and run `ytdlp-app.exe`
-- **macOS** — unzip, then run/move `ytdlp-app` (or `ytdlp-app.app`, if built as a bundle)
-- **Linux** — unzip, `chmod +x ytdlp-app`, then run it
+- **Windows** — unzip and run `UniversalDownloader.exe`
+- **macOS** — unzip, then run/move `UniversalDownloader` (or `UniversalDownloader.app`, if built as a bundle)
+- **Linux** — unzip, `chmod +x UniversalDownloader`, then run it
 
 You'll also need **[ffmpeg](https://ffmpeg.org/download.html)** on your `PATH` for merging video+audio, format conversion, and embedding subtitles.
 
@@ -68,8 +70,10 @@ sudo apt-get install python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-ayatana
 ## Building it yourself
 
 ```bash
-pyinstaller --onefile --windowed --name ytdlp-app ytdlp_app.py
+pyinstaller --onefile --windowed --name UniversalDownloader --add-data "index.html:." --add-data "console.html:." ytdlp_app.py
 ```
+
+(On Windows use `;` instead of `:` as the separator in `--add-data`.)
 
 GitHub Actions (`.github/workflows/build.yml`) does this automatically for Windows, macOS, and Linux whenever a tag matching `v*` is pushed, and attaches all three builds to the resulting GitHub Release. You can also trigger it manually from the **Actions** tab (`workflow_dispatch`) to test a build without cutting a release.
 
@@ -77,13 +81,19 @@ GitHub Actions (`.github/workflows/build.yml`) does this automatically for Windo
 
 [udl.moviora.win](https://udl.moviora.win) is a static page that talks to the very same local service running on your machine at `127.0.0.1:47831`. If the service isn't detected, the page offers the installer for your OS instead. No separate web backend — it's the same `ytdlp_app.py` you already run locally.
 
+## Android (experimental)
+
+The `android/` folder contains an early, work-in-progress Android app (Kotlin + Chaquopy, embedding the same Python engine and `index.html`). It supports sharing a link straight from other apps ("Share" → UniversalDownloader) and includes an experimental integration with [ffmpeg-kit-extended](https://github.com/akashskypatel/ffmpeg-kit-extended) for merging separately-streamed video+audio. This isn't part of the regular releases yet — build it yourself from Android Studio if you want to try it.
+
 ## Project layout
 
 ```
 ytdlp_app.py               single unified app (engine + local server + desktop shell)
 index.html                 shared frontend for the desktop window and the website
+console.html                hidden raw stdout/stderr viewer (/console)
 requirements.txt
 .github/workflows/build.yml
+android/                   experimental Android app (see above)
 ```
 
 ## Disclaimer

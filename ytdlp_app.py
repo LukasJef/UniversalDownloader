@@ -13,7 +13,7 @@ http://127.0.0.1:PORT/, exactly like the browser is. One shared frontend
 Left click on tray icon      -> open/focus the app window (Download tab)
 Win+Shift+D anywhere         -> same as left click (global hotkey; on macOS
                                  this is Cmd+Shift+D)
-Right click on tray icon     -> "Open" / "Open log" / "Run with OS" / "Exit"
+Right click on tray icon     -> "Open" / "Open Console" / "Run with OS" / "Exit"
 Closing the app window       -> just closes that window normally. The app
                                  keeps running in the tray regardless -
                                  opening it again creates a fresh window.
@@ -81,6 +81,59 @@ APP_NAME = "UniversalDownloader"
 BROWSERS = ["chrome", "firefox", "edge", "brave", "opera", "vivaldi", "chromium", "safari"]
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 MAX_LOG_LINES = 400
+MAX_CONSOLE_CHARS = 300_000
+
+
+# --------------------------------------------------------------------------- #
+#  Zachyceni stdout/stderr pro skrytou /console stranku (ne pro bezne         #
+#  uzivatele - viditelna jen tomu, kdo si adresu zada rucne). V zabalenem     #
+#  .exe (--windowed) jinak zadnou konzoli vubec nevidis, takze tohle je       #
+#  jediny zpusob, jak se k tracebackum dostat i tam.                         #
+# --------------------------------------------------------------------------- #
+
+_console_buffer = []
+_console_lock = threading.Lock()
+
+
+class _ConsoleCapture:
+    """Propousti veskery vystup do puvodniho proudu (aby appka spustena ze
+    zdrojaku vypisovala do konzole jako dřív) a zaroven si ho uklada do
+    bufferu pro /api/console_log."""
+
+    def __init__(self, original_stream):
+        self.original_stream = original_stream
+
+    def write(self, text):
+        if self.original_stream:
+            try:
+                self.original_stream.write(text)
+            except Exception:
+                pass
+        if text:
+            with _console_lock:
+                _console_buffer.append(text)
+                total = sum(len(chunk) for chunk in _console_buffer)
+                while total > MAX_CONSOLE_CHARS and len(_console_buffer) > 1:
+                    total -= len(_console_buffer.pop(0))
+
+    def flush(self):
+        if self.original_stream:
+            try:
+                self.original_stream.flush()
+            except Exception:
+                pass
+
+    def isatty(self):
+        return False
+
+
+def get_console_text():
+    with _console_lock:
+        return "".join(_console_buffer)
+
+
+sys.stdout = _ConsoleCapture(sys.stdout)
+sys.stderr = _ConsoleCapture(sys.stderr)
 
 
 # --------------------------------------------------------------------------- #
@@ -308,6 +361,13 @@ def serialize_info(info):
 
 def build_video_format(height, language):
     language = language or "default"
+    if language == "__all__":
+        # Vybere video + VŠECHNY dostupné audio stopy (jazyky) najednou -
+        # potřebuje allow_multiple_audio_streams=True v yt-dlp options,
+        # viz _download_video níže.
+        if height:
+            return f"bestvideo[height<={height}]+mergeall[acodec!=none]/best[height<={height}]"
+        return "bestvideo+mergeall[acodec!=none]/best"
     lang_filter = f"[language={language}]" if language != "default" else ""
     if height:
         return f"bestvideo[height<={height}]+bestaudio{lang_filter}/best[height<={height}]"
@@ -611,6 +671,8 @@ class Api:
             "merge_output_format": container if container != "auto" else "mp4",
             "progress_hooks": [self._progress_hook],
         })
+        if language == "__all__":
+            options["allow_multiple_audio_streams"] = True
         postprocessors = []
         if container != "auto":
             if not ffmpeg_available():
@@ -812,7 +874,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5500",
 ]
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 app = Flask(__name__)
 CORS(app, origins=ALLOWED_ORIGINS)
@@ -840,6 +902,16 @@ try:
 except OSError:
     _INDEX_HTML = "<h1>index.html nebyl nalezen vedle ytdlp_app.py</h1>"
 
+# console.html - skryta diagnosticka stranka (viz /console nize), nikde
+# neodkazovana z hlavniho UI. Stejny princip jako index.html - stejny
+# soubor je hostovany i na udl.moviora.win/console pro webovou variantu.
+_CONSOLE_HTML_PATH = _resource_path("console.html")
+try:
+    with open(_CONSOLE_HTML_PATH, "r", encoding="utf-8") as _handle:
+        _CONSOLE_HTML = _handle.read()
+except OSError:
+    _CONSOLE_HTML = "<h1>console.html nebyl nalezen vedle ytdlp_app.py</h1>"
+
 
 # --------------------------------------------------------------------------- #
 #  Pomocné funkce pro parsování požadavků                                     #
@@ -856,6 +928,16 @@ def json_body():
 @app.get("/")
 def index():
     return _INDEX_HTML
+
+
+@app.get("/console")
+def console_page():
+    return _CONSOLE_HTML
+
+
+@app.get("/api/console_log")
+def console_log():
+    return jsonify({"text": get_console_text()})
 
 
 # --------------------------------------------------------------------------- #
@@ -879,7 +961,7 @@ def get_settings():
 
 
 @app.post("/api/settings")
-def save_settings():
+def save_settings_route():
     return jsonify(api.save_settings(json_body()))
 
 
@@ -1067,19 +1149,24 @@ class WindowManager:
         self._window = None
         self._lock = threading.Lock()
 
-    def open(self, tab=None):
+    def open(self, tab=None, path=None):
         with self._lock:
             if self._window is not None:
                 try:
                     self._window.show()
                     self._window.restore()
-                    if tab:
+                    if path:
+                        # jina stranka (napr. /console) - musime opravdu prenavigovat,
+                        # ne jen prepnout zalozku uvnitr te same stranky
+                        self._window.load_url(self.base_url + path)
+                    elif tab:
                         self._window.evaluate_js(f'switchTab("{tab}")')
                     return self._window
                 except Exception:
                     self._window = None  # window object is stale, fall through and recreate
 
-            path = f"/?tab={tab}" if tab else "/"
+            if path is None:
+                path = f"/?tab={tab}" if tab else "/"
             window = webview.create_window(
                 APP_TITLE, url=self.base_url + path,
                 width=1100, height=800, min_size=(880, 640),
@@ -1123,8 +1210,8 @@ def build_tray(window_manager, server_thread, hotkey_listener, anchor_window):
     def on_open(icon, item):
         threading.Thread(target=window_manager.open, daemon=True).start()
 
-    def on_open_log(icon, item):
-        threading.Thread(target=window_manager.open, kwargs={"tab": "logs"}, daemon=True).start()
+    def on_open_console(icon, item):
+        threading.Thread(target=window_manager.open, kwargs={"path": "/console"}, daemon=True).start()
 
     def on_toggle_autostart(icon, item):
         set_autostart(not is_autostart_enabled())
@@ -1144,7 +1231,7 @@ def build_tray(window_manager, server_thread, hotkey_listener, anchor_window):
 
     menu = pystray.Menu(
         pystray.MenuItem("Open", on_open, default=True),
-        pystray.MenuItem("Open log", on_open_log),
+        pystray.MenuItem("Open Console", on_open_console),
         pystray.MenuItem("Run with OS", on_toggle_autostart, checked=lambda item: is_autostart_enabled()),
         pystray.MenuItem("Exit", on_exit),
     )
