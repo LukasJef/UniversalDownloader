@@ -1,5 +1,4 @@
-# yt-dlp App
-
+# UniversalDownloader | UDL
 A single cross-platform app that combines a local [yt-dlp](https://github.com/yt-dlp/yt-dlp) service, a system tray icon, and an on-demand desktop window — all in one process. The same local service also powers the companion web UI at **[udl.moviora.win](https://udl.moviora.win)**, so the desktop app and the website share one codebase and one interface.
 
 ## Features
