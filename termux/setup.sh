@@ -45,21 +45,43 @@ termux-setup-storage
 sleep 2  # give the system a moment to process the permission
 
 echo
-echo "[5/5] Allowing the UniversalDownloader app to run commands in Termux..."
-mkdir -p ~/.termux
-PROPS=~/.termux/termux.properties
-if [ -f "$PROPS" ] && grep -q "^allow-external-apps" "$PROPS"; then
-    sed -i 's/^allow-external-apps.*/allow-external-apps = true/' "$PROPS"
-else
-    echo "allow-external-apps = true" >> "$PROPS"
+echo "[5/5] Setting up the server to start automatically whenever you open Termux..."
+# Android often won't let a third-party app (like the UniversalDownloader
+# app) send the special RUN_COMMAND intent to Termux without a manual ADB
+# permission grant, which isn't realistic to ask regular users to do. So
+# instead of relying on that, we make the server start itself - simply
+# opening Termux once is enough, no extra permission needed at all.
+BASHRC=~/.bashrc
+START_SNIPPET='# --- UniversalDownloader: auto-start local server ---'
+if ! grep -qF "$START_SNIPPET" "$BASHRC" 2>/dev/null; then
+    cat >> "$BASHRC" << 'EOF'
+
+# --- UniversalDownloader: auto-start local server ---
+UDL_PID_FILE=~/udl/server.pid
+if [ -f ~/udl/server.py ]; then
+    if [ ! -f "$UDL_PID_FILE" ] || ! kill -0 "$(cat "$UDL_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+        nohup python ~/udl/server.py > ~/udl/server.log 2>&1 &
+        echo $! > "$UDL_PID_FILE"
+    fi
 fi
-termux-reload-settings
+# --- end UniversalDownloader ---
+EOF
+fi
+
+# Start it right now too, for this session, so it's ready immediately.
+UDL_PID_FILE=~/udl/server.pid
+if [ ! -f "$UDL_PID_FILE" ] || ! kill -0 "$(cat "$UDL_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+    nohup python ~/udl/server.py > ~/udl/server.log 2>&1 &
+    echo $! > "$UDL_PID_FILE"
+fi
 
 echo
 echo "== Done =="
-echo "You can try starting the server manually with:"
-echo "    python ~/udl/server.py"
-echo "and opening http://127.0.0.1:47831 in a browser on your phone."
+echo "The server now starts automatically every time you open Termux - just"
+echo "open the Termux app (it can stay in the background) and the"
+echo "UniversalDownloader Android app will find it at http://127.0.0.1:47831."
 echo
-echo "For full functionality (sharing links from YouTube etc.), install the"
-echo "UniversalDownloader Android app - see the README in the repository."
+echo "(Optional, for advanced users: the UniversalDownloader app can also try"
+echo "to start the server itself via Termux's RUN_COMMAND intent, but Android"
+echo "usually requires granting that permission through adb - see the README"
+echo "if you want to set that up. It isn't necessary for normal use.)"
