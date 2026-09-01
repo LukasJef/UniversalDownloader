@@ -151,6 +151,7 @@
         <input id="outdir" class="field min-w-0 flex-1 rounded-xl px-3 py-3 text-sm">
         <button id="browse-outdir" data-i18n="browse" class="rounded-xl border border-line bg-gray-800/60 px-4 text-sm transition hover:bg-gray-700">Procházet</button>
       </div>
+      <p id="outdir-hint" data-i18n="outdirHintTermux" class="mt-2 hidden text-xs text-gray-500">Na Androidu není systémový výběr složky - cestu můžeš přepsat ručně v poli výše.</p>
       <label data-i18n="renameLabel" class="mb-2 mt-4 block text-xs text-gray-500">Vlastní název souboru (nepovinné)</label>
       <input id="rename" class="field w-full rounded-xl px-3 py-3 text-sm" data-i18n-ph="renamePlaceholder" placeholder="necháno prázdné = originální název">
     </div>
@@ -318,6 +319,15 @@ async function boot() {
   if (statusEl) statusEl.textContent = tr("gateSearching");
   const info = await pingLocalService();
   if (info && info.ok) {
+    // Termux build nema systemovy vyber slozky - misto nefunkcniho tlacitka
+    // "Prochazet" ukazeme napovedu, ze cestu jde prepsat rucne.
+    isTermux = info.platform === "termux";
+    if (isTermux) {
+      const browseBtn = document.getElementById("browse-outdir");
+      const hint = document.getElementById("outdir-hint");
+      if (browseBtn) browseBtn.classList.add("hidden");
+      if (hint) hint.classList.remove("hidden");
+    }
     document.getElementById("install-gate").classList.add("hidden");
     document.getElementById("app-root").classList.remove("hidden");
     await initApp();
@@ -327,6 +337,8 @@ async function boot() {
     if (statusEl) statusEl.textContent = tr("gateNotResponding");
   }
 }
+
+let isTermux = false;
 
 let pendingSharedUrl = null;
 
@@ -370,7 +382,8 @@ const translations = {
     subSourceLabel:"Zdroj titulků", subOriginal:"Originální", subAuto:"Automaticky generované",
     subLangLabel:"Jazyk titulků", subFormatLabel:"Formát titulků", thumbQualityLabel:"Kvalita náhledu",
     sizeUnknown:"neznámá velikost",
-    outputTitle:"Výstup", saveTo:"Ukládat do", browse:"Procházet", renameLabel:"Vlastní název souboru (nepovinné)",
+    outputTitle:"Výstup", saveTo:"Ukládat do", browse:"Procházet",
+    outdirHintTermux:"Na Androidu není systémový výběr složky - cestu můžeš přepsat ručně v poli výše.", renameLabel:"Vlastní název souboru (nepovinné)",
     renamePlaceholder:"necháno prázdné = originální název",
     cookiesTitle:"Ověření / cookies", cookieNone:"Bez cookies", cookieFile:"Soubor cookies.txt", cookieBrowser:"Z prohlížeče",
     advancedTitle:"Pokročilé", speedLimit:"Omezení rychlosti", updateYtdlp:"🔄 Aktualizovat yt-dlp",
@@ -408,7 +421,8 @@ const translations = {
     subSourceLabel:"Subtitle source", subOriginal:"Original", subAuto:"Auto-generated",
     subLangLabel:"Subtitle language", subFormatLabel:"Subtitle format", thumbQualityLabel:"Thumbnail quality",
     sizeUnknown:"unknown size",
-    outputTitle:"Output", saveTo:"Save to", browse:"Browse", renameLabel:"Custom filename (optional)",
+    outputTitle:"Output", saveTo:"Save to", browse:"Browse",
+    outdirHintTermux:"Android has no system folder picker - you can type the path manually in the field above.", renameLabel:"Custom filename (optional)",
     renamePlaceholder:"leave empty = original title",
     cookiesTitle:"Authentication / cookies", cookieNone:"No cookies", cookieFile:"cookies.txt file", cookieBrowser:"From browser",
     advancedTitle:"Advanced", speedLimit:"Speed limit", updateYtdlp:"🔄 Update yt-dlp",
@@ -446,7 +460,8 @@ const translations = {
     subSourceLabel:"Źródło napisów", subOriginal:"Oryginalne", subAuto:"Automatycznie generowane",
     subLangLabel:"Język napisów", subFormatLabel:"Format napisów", thumbQualityLabel:"Jakość miniatury",
     sizeUnknown:"nieznany rozmiar",
-    outputTitle:"Wyjście", saveTo:"Zapisz w", browse:"Przeglądaj", renameLabel:"Własna nazwa pliku (opcjonalnie)",
+    outputTitle:"Wyjście", saveTo:"Zapisz w", browse:"Przeglądaj",
+    outdirHintTermux:"Android nie ma systemowego wyboru folderu - ścieżkę możesz wpisać ręcznie w polu powyżej.", renameLabel:"Własna nazwa pliku (opcjonalnie)",
     renamePlaceholder:"puste = oryginalna nazwa",
     cookiesTitle:"Uwierzytelnianie / cookies", cookieNone:"Bez cookies", cookieFile:"Plik cookies.txt", cookieBrowser:"Z przeglądarki",
     advancedTitle:"Zaawansowane", speedLimit:"Limit prędkości", updateYtdlp:"🔄 Zaktualizuj yt-dlp",
@@ -484,7 +499,8 @@ const translations = {
     subSourceLabel:"Source des sous-titres", subOriginal:"Originaux", subAuto:"Générés automatiquement",
     subLangLabel:"Langue des sous-titres", subFormatLabel:"Format des sous-titres", thumbQualityLabel:"Qualité de la miniature",
     sizeUnknown:"taille inconnue",
-    outputTitle:"Sortie", saveTo:"Enregistrer dans", browse:"Parcourir", renameLabel:"Nom de fichier personnalisé (facultatif)",
+    outputTitle:"Sortie", saveTo:"Enregistrer dans", browse:"Parcourir",
+    outdirHintTermux:"Android n'a pas de sélecteur de dossier système - tu peux saisir le chemin manuellement dans le champ ci-dessus.", renameLabel:"Nom de fichier personnalisé (facultatif)",
     renamePlaceholder:"vide = titre original",
     cookiesTitle:"Authentification / cookies", cookieNone:"Sans cookies", cookieFile:"Fichier cookies.txt", cookieBrowser:"Depuis le navigateur",
     advancedTitle:"Avancé", speedLimit:"Limite de vitesse", updateYtdlp:"🔄 Mettre à jour yt-dlp",
@@ -522,7 +538,8 @@ const translations = {
     subSourceLabel:"字幕のソース", subOriginal:"オリジナル", subAuto:"自動生成",
     subLangLabel:"字幕の言語", subFormatLabel:"字幕のフォーマット", thumbQualityLabel:"サムネイルの画質",
     sizeUnknown:"サイズ不明",
-    outputTitle:"出力", saveTo:"保存先", browse:"参照", renameLabel:"カスタムファイル名(任意)",
+    outputTitle:"出力", saveTo:"保存先", browse:"参照",
+    outdirHintTermux:"Androidにはシステムのフォルダ選択がありません - 上の欄にパスを直接入力できます。", renameLabel:"カスタムファイル名(任意)",
     renamePlaceholder:"空欄 = 元のタイトル",
     cookiesTitle:"認証/Cookie", cookieNone:"Cookieを使用しない", cookieFile:"cookies.txtファイル", cookieBrowser:"ブラウザから",
     advancedTitle:"詳細設定", speedLimit:"速度制限", updateYtdlp:"🔄 yt-dlpを更新",
