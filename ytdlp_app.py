@@ -359,12 +359,69 @@ def serialize_info(info):
     }
 
 
-def build_video_format(height, language):
+# ISO 639-1 (2 znaky, format co pouziva yt-dlp/YouTube) -> ISO 639-2/B (3 znaky,
+# co vyzaduje MP4/MOV kontejner pro metadata:s:a jazyk - kratsi kod ffmpeg
+# do vysledneho souboru TICHE nezapise, viz _tag_audio_languages nize).
+ISO_639_1_TO_2 = {
+    "aa": "aar", "ab": "abk", "af": "afr", "ak": "aka", "sq": "alb", "am": "amh",
+    "ar": "ara", "an": "arg", "hy": "arm", "as": "asm", "av": "ava", "ae": "ave",
+    "ay": "aym", "az": "aze", "ba": "bak", "bm": "bam", "eu": "baq", "be": "bel",
+    "bn": "ben", "bh": "bih", "bi": "bis", "bs": "bos", "br": "bre", "bg": "bul",
+    "my": "bur", "ca": "cat", "ch": "cha", "ce": "che", "zh": "chi", "cu": "chu",
+    "cv": "chv", "kw": "cor", "co": "cos", "cr": "cre", "cs": "cze", "da": "dan",
+    "dv": "div", "nl": "dut", "dz": "dzo", "en": "eng", "eo": "epo", "et": "est",
+    "ee": "ewe", "fo": "fao", "fj": "fij", "fi": "fin", "fr": "fre", "fy": "fry",
+    "ff": "ful", "ka": "geo", "de": "ger", "gd": "gla", "ga": "gle", "gl": "glg",
+    "gv": "glv", "el": "gre", "gn": "grn", "gu": "guj", "ht": "hat", "ha": "hau",
+    "he": "heb", "hz": "her", "hi": "hin", "ho": "hmo", "hr": "hrv", "hu": "hun",
+    "ig": "ibo", "is": "ice", "io": "ido", "ii": "iii", "iu": "iku", "ie": "ile",
+    "ia": "ina", "id": "ind", "ik": "ipk", "it": "ita", "jv": "jav", "ja": "jpn",
+    "kl": "kal", "kn": "kan", "ks": "kas", "kr": "kau", "kk": "kaz", "km": "khm",
+    "ki": "kik", "rw": "kin", "ky": "kir", "kv": "kom", "kg": "kon", "ko": "kor",
+    "kj": "kua", "ku": "kur", "lo": "lao", "la": "lat", "lv": "lav", "li": "lim",
+    "ln": "lin", "lt": "lit", "lb": "ltz", "lu": "lub", "lg": "lug", "mk": "mac",
+    "mh": "mah", "ml": "mal", "mi": "mao", "mr": "mar", "ms": "may", "mg": "mlg",
+    "mt": "mlt", "mn": "mon", "na": "nau", "nv": "nav", "nr": "nbl", "nd": "nde",
+    "ng": "ndo", "ne": "nep", "nn": "nno", "nb": "nob", "no": "nor", "ny": "nya",
+    "oc": "oci", "oj": "oji", "or": "ori", "om": "orm", "os": "oss", "pa": "pan",
+    "fa": "per", "pi": "pli", "pl": "pol", "pt": "por", "ps": "pus", "qu": "que",
+    "rm": "roh", "ro": "rum", "rn": "run", "ru": "rus", "sg": "sag", "sa": "san",
+    "si": "sin", "sk": "slo", "sl": "slv", "se": "sme", "sm": "smo", "sn": "sna",
+    "sd": "snd", "so": "som", "st": "sot", "es": "spa", "sc": "srd", "sr": "srp",
+    "ss": "ssw", "su": "sun", "sw": "swa", "sv": "swe", "ty": "tah", "ta": "tam",
+    "tt": "tat", "te": "tel", "tg": "tgk", "tl": "tgl", "th": "tha", "ti": "tir",
+    "to": "ton", "tn": "tsn", "ts": "tso", "tk": "tuk", "tr": "tur", "tw": "twi",
+    "ug": "uig", "uk": "ukr", "ur": "urd", "uz": "uzb", "ve": "ven", "vi": "vie",
+    "vo": "vol", "wa": "wln", "wo": "wol", "xh": "xho", "yi": "yid", "yo": "yor",
+    "za": "zha", "zu": "zul",
+}
+
+
+def to_iso639_2(language_code):
+    """Prevede ISO 639-1 kod (2 znaky) na ISO 639-2/B (3 znaky) - MP4/MOV
+    metadata:s:a jazyk vyzaduje presne tenhle format. Regionalni varianty
+    jako "en-US" se oriznou na zakladni "en" pred prevodem. Nezname kody se
+    vrati beze zmeny (lepsi nez nic, i kdyz je mozne, ze je kontejner tiše
+    zahodi stejne jako puvodne)."""
+    if not language_code or language_code == "default":
+        return None
+    base = language_code.split("-")[0].lower()
+    return ISO_639_1_TO_2.get(base, language_code)
+
+
+def build_video_format(height, language, audio_format_ids=None):
     language = language or "default"
     if language == "__all__":
-        # Vybere video + VŠECHNY dostupné audio stopy (jazyky) najednou -
-        # potřebuje allow_multiple_audio_streams=True v yt-dlp options,
-        # viz _download_video níže.
+        if audio_format_ids:
+            # presny vycet - jedna nejlepsi stopa na jazyk (viz frontend
+            # bestAudioPerLanguage()), aby se nestahovaly desitky duplicitnich
+            # bitrate/kodek variant stejneho jazyka.
+            audio_part = "+".join(audio_format_ids)
+            if height:
+                return f"bestvideo[height<={height}]+{audio_part}/best[height<={height}]"
+            return f"bestvideo+{audio_part}/best"
+        # Zadny seznam neprisel (nemelo by se stat) - zaloha, co porad
+        # funguje, ale muze stahnout vic duplicit nez je nutne.
         if height:
             return f"bestvideo[height<={height}]+mergeall[acodec!=none]/best[height<={height}]"
         return "bestvideo+mergeall[acodec!=none]/best"
@@ -661,7 +718,8 @@ class Api:
         except (TypeError, ValueError):
             height = None
         language = config.get("video_language") or "default"
-        fmt = build_video_format(height, language)
+        audio_format_ids = config.get("video_audio_format_ids") or []
+        fmt = build_video_format(height, language, audio_format_ids)
 
         container = (config.get("video_container") or "auto").lower()
         options = self._common_opts(config)
@@ -693,7 +751,40 @@ class Api:
 
         self._log(f"Stahuji video (formát: {fmt})...")
         with yt_dlp.YoutubeDL(options) as downloader:
-            downloader.download([url])
+            info = downloader.extract_info(url, download=True)
+
+        if language == "__all__":
+            languages = config.get("video_audio_languages") or []
+            if languages and info:
+                downloads = info.get("requested_downloads") or ([info] if info.get("filepath") else [])
+                for item in downloads:
+                    filepath = item.get("filepath")
+                    if filepath and os.path.isfile(filepath):
+                        self._tag_audio_languages(filepath, languages)
+
+    def _tag_audio_languages(self, filepath, languages):
+        """yt-dlp/ffmpeg při sloučení víc audio stop neoznačí jazyk každé
+        stopy v kontejneru (VLC apod. pak ukazuje jen "Stopa 1", "Stopa 2"…
+        místo skutečného jazyka) - doplníme to samostatným rychlým -c copy
+        průchodem, co jen přepíše metadata, beze ztráty kvality. MP4/MOV
+        navíc vyžaduje třípísmenné ISO 639-2 kódy - dvoupísmenné (co
+        posílá yt-dlp/YouTube) by kontejner tiše zahodil, viz to_iso639_2()."""
+        if not ffmpeg_available():
+            return
+        tmp_path = filepath + ".tmp" + os.path.splitext(filepath)[1]
+        cmd = ["ffmpeg", "-y", "-i", filepath, "-map", "0", "-c", "copy"]
+        for i, lang in enumerate(languages):
+            iso_lang = to_iso639_2(lang) or lang
+            cmd += [f"-metadata:s:a:{i}", f"language={iso_lang}"]
+        cmd.append(tmp_path)
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            os.replace(tmp_path, filepath)
+            self._log("Jazyky audio stop byly označeny v souboru.")
+        except Exception as exc:
+            self._log(f"Označení jazyků stop selhalo (soubor je v pořádku, jen bez metadat): {exc}")
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def _download_audio(self, url, config, outdir, playlist):
         format_id = config.get("audio_format_id")
@@ -874,7 +965,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5500",
 ]
 
-VERSION = "1.1.0"
+VERSION = "1.0.1"
 
 app = Flask(__name__)
 CORS(app, origins=ALLOWED_ORIGINS)

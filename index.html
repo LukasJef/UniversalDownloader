@@ -616,6 +616,15 @@ function renderOptions() {
   if (state.mode === "video") {
     const heights = [...new Set(info.formats.filter(f => f.vcodec !== "none" && f.height).map(f => Number(f.height)))].sort((a,b) => b-a);
     const languages = [...new Set(info.formats.filter(f => f.acodec !== "none").map(f => f.language || "default"))];
+    // Pro kazdy jazyk najdeme JEN tu nejlepsi (nejvyssi bitrate) variantu -
+    // YouTube casto nabizi tentyz jazyk v 4-5 ruznych bitrate/kodek variantach,
+    // bez tohohle by "Vsechny stopy" stahlo desitky duplicitnich souboru.
+    state.bestAudioPerLanguage = {};
+    info.formats.filter(f => f.acodec !== "none").forEach(f => {
+      const key = f.language || "default";
+      const current = state.bestAudioPerLanguage[key];
+      if (!current || (f.abr || 0) > (current.abr || 0)) state.bestAudioPerLanguage[key] = f;
+    });
     box.innerHTML = `
       <label class="block text-xs text-gray-400">${tr("qualityLabel")}
         <div class="mt-2 flex items-center gap-2">
@@ -777,6 +786,12 @@ function config() {
     browser: $("browser").value,
     video_height: $("video-quality") ? $("video-quality").value : "",
     video_language: $("video-language") ? $("video-language").value : "default",
+    video_audio_format_ids: ($("video-language") && $("video-language").value === "__all__" && state.bestAudioPerLanguage)
+      ? Object.entries(state.bestAudioPerLanguage).map(([, f]) => f.format_id)
+      : [],
+    video_audio_languages: ($("video-language") && $("video-language").value === "__all__" && state.bestAudioPerLanguage)
+      ? Object.entries(state.bestAudioPerLanguage).map(([lang]) => lang)
+      : [],
     video_container: $("video-container") ? $("video-container").value : "auto",
     embed_subs: $("embed-subs") ? $("embed-subs").checked : false,
     has_manual_subs: !!(state.info && state.info.subtitles.length),
