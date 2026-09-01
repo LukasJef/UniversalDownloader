@@ -179,7 +179,8 @@
           <input id="ratelimit" class="field ml-2 w-28 rounded-lg px-2 py-2 text-sm" placeholder="2M">
         </label>
         <button id="update-ytdlp" data-i18n="updateYtdlp" class="rounded-xl border border-line bg-gray-800/60 px-4 py-2 text-sm transition hover:bg-gray-700">🔄 Aktualizovat yt-dlp</button>
-        <button id="update-gui" data-i18n="updateGui" class="hidden rounded-xl border border-line bg-gray-800/60 px-4 py-2 text-sm transition hover:bg-gray-700">⬆ Aktualizovat aplikaci</button>
+        <button id="update-gui" data-i18n="updateGui" class="hidden rounded-xl border border-line bg-gray-800/60 px-4 py-2 text-sm transition hover:bg-gray-700">🔧 Aktualizovat funkce</button>
+        <button id="update-app" data-i18n="updateApp" class="hidden rounded-xl border border-line bg-gray-800/60 px-4 py-2 text-sm transition hover:bg-gray-700">⬆ Aktualizovat aplikaci</button>
       </div>
     </div>
     <div class="glass rounded-3xl p-5">
@@ -340,6 +341,12 @@ async function boot() {
       // aktualizuje stazenim nove verze z Releases.
       const updateGuiBtn = document.getElementById("update-gui");
       if (updateGuiBtn) updateGuiBtn.classList.remove("hidden");
+      // Aktualizace samotne APK jde jen pres nativni most - na webu
+      // (bez appky) tlacitko nema komu delegovat, tak ho neukazujeme.
+      if (window.UdlAndroid && typeof window.UdlAndroid.checkForAppUpdate === "function") {
+        const updateAppBtn = document.getElementById("update-app");
+        if (updateAppBtn) updateAppBtn.classList.remove("hidden");
+      }
       // Cookies "z prohlizece" cte soubory z profilu desktopoveho prohlizece -
       // na Androidu jsou appky navzajem izolovane, takze to principialne nejde.
       const browserCookieRow = document.getElementById("cookie-browser-row");
@@ -430,7 +437,10 @@ const translations = {
     outdirHintTermux:"Na Androidu není systémový výběr složky - cestu můžeš přepsat ručně v poli výše.", renameLabel:"Vlastní název souboru (nepovinné)",
     renamePlaceholder:"necháno prázdné = originální název",
     cookiesTitle:"Ověření / cookies", cookieNone:"Bez cookies", cookieFile:"Soubor cookies.txt", cookieBrowser:"Z prohlížeče",
-    advancedTitle:"Pokročilé", speedLimit:"Omezení rychlosti", updateYtdlp:"🔄 Aktualizovat yt-dlp", updateGui:"⬆ Aktualizovat aplikaci",
+    advancedTitle:"Pokročilé", speedLimit:"Omezení rychlosti", updateYtdlp:"🔄 Aktualizovat yt-dlp", updateGui:"🔧 Aktualizovat funkce", updateApp:"⬆ Aktualizovat aplikaci",
+    updateAppChecking:"Kontroluji, jestli je novější verze aplikace...",
+    updateAppUpToDate:"Aplikace je aktuální (verze {v}).",
+    updateAppInstalling:"Stažena verze {v}, spouštím instalaci...",
     updateGuiRestarting:"Stahuji aktualizace a restartuji server, vydrž chvíli...",
     updateGuiTimeout:"Server po aktualizaci nenaběhl. Zkus otevřít Termux a spustit ho ručně.",
     appearanceTitle:"Vzhled a jazyk", appearance:"Vzhled", language:"Jazyk", dark:"Tmavý", light:"Světlý",
@@ -471,7 +481,10 @@ const translations = {
     outdirHintTermux:"Android has no system folder picker - you can type the path manually in the field above.", renameLabel:"Custom filename (optional)",
     renamePlaceholder:"leave empty = original title",
     cookiesTitle:"Authentication / cookies", cookieNone:"No cookies", cookieFile:"cookies.txt file", cookieBrowser:"From browser",
-    advancedTitle:"Advanced", speedLimit:"Speed limit", updateYtdlp:"🔄 Update yt-dlp", updateGui:"⬆ Update app",
+    advancedTitle:"Advanced", speedLimit:"Speed limit", updateYtdlp:"🔄 Update yt-dlp", updateGui:"🔧 Update functions", updateApp:"⬆ Update app",
+    updateAppChecking:"Checking for a newer version of the app...",
+    updateAppUpToDate:"The app is up to date (version {v}).",
+    updateAppInstalling:"Downloaded version {v}, starting the installer...",
     updateGuiRestarting:"Downloading updates and restarting the server, hold on...",
     updateGuiTimeout:"The server didn't come back after the update. Try opening Termux and starting it manually.",
     appearanceTitle:"Appearance and language", appearance:"Appearance", language:"Language", dark:"Dark", light:"Light",
@@ -512,7 +525,10 @@ const translations = {
     outdirHintTermux:"Android nie ma systemowego wyboru folderu - ścieżkę możesz wpisać ręcznie w polu powyżej.", renameLabel:"Własna nazwa pliku (opcjonalnie)",
     renamePlaceholder:"puste = oryginalna nazwa",
     cookiesTitle:"Uwierzytelnianie / cookies", cookieNone:"Bez cookies", cookieFile:"Plik cookies.txt", cookieBrowser:"Z przeglądarki",
-    advancedTitle:"Zaawansowane", speedLimit:"Limit prędkości", updateYtdlp:"🔄 Zaktualizuj yt-dlp", updateGui:"⬆ Zaktualizuj aplikację",
+    advancedTitle:"Zaawansowane", speedLimit:"Limit prędkości", updateYtdlp:"🔄 Zaktualizuj yt-dlp", updateGui:"🔧 Zaktualizuj funkcje", updateApp:"⬆ Zaktualizuj aplikację",
+    updateAppChecking:"Sprawdzam, czy jest nowsza wersja aplikacji...",
+    updateAppUpToDate:"Aplikacja jest aktualna (wersja {v}).",
+    updateAppInstalling:"Pobrano wersję {v}, uruchamiam instalator...",
     updateGuiRestarting:"Pobieram aktualizacje i restartuję serwer, chwileczkę...",
     updateGuiTimeout:"Serwer nie wrócił po aktualizacji. Spróbuj otworzyć Termux i uruchomić go ręcznie.",
     appearanceTitle:"Wygląd i język", appearance:"Wygląd", language:"Język", dark:"Ciemny", light:"Jasny",
@@ -553,7 +569,10 @@ const translations = {
     outdirHintTermux:"Android n'a pas de sélecteur de dossier système - tu peux saisir le chemin manuellement dans le champ ci-dessus.", renameLabel:"Nom de fichier personnalisé (facultatif)",
     renamePlaceholder:"vide = titre original",
     cookiesTitle:"Authentification / cookies", cookieNone:"Sans cookies", cookieFile:"Fichier cookies.txt", cookieBrowser:"Depuis le navigateur",
-    advancedTitle:"Avancé", speedLimit:"Limite de vitesse", updateYtdlp:"🔄 Mettre à jour yt-dlp", updateGui:"⬆ Mettre à jour l'app",
+    advancedTitle:"Avancé", speedLimit:"Limite de vitesse", updateYtdlp:"🔄 Mettre à jour yt-dlp", updateGui:"🔧 Mettre à jour les fonctions", updateApp:"⬆ Mettre à jour l'app",
+    updateAppChecking:"Vérification d'une nouvelle version de l'app...",
+    updateAppUpToDate:"L'app est à jour (version {v}).",
+    updateAppInstalling:"Version {v} téléchargée, lancement de l'installation...",
     updateGuiRestarting:"Téléchargement des mises à jour et redémarrage du serveur, un instant...",
     updateGuiTimeout:"Le serveur n'est pas revenu après la mise à jour. Essaie d'ouvrir Termux et de le lancer manuellement.",
     appearanceTitle:"Apparence et langue", appearance:"Apparence", language:"Langue", dark:"Sombre", light:"Clair",
@@ -594,7 +613,10 @@ const translations = {
     outdirHintTermux:"Androidにはシステムのフォルダ選択がありません - 上の欄にパスを直接入力できます。", renameLabel:"カスタムファイル名(任意)",
     renamePlaceholder:"空欄 = 元のタイトル",
     cookiesTitle:"認証/Cookie", cookieNone:"Cookieを使用しない", cookieFile:"cookies.txtファイル", cookieBrowser:"ブラウザから",
-    advancedTitle:"詳細設定", speedLimit:"速度制限", updateYtdlp:"🔄 yt-dlpを更新", updateGui:"⬆ アプリを更新",
+    advancedTitle:"詳細設定", speedLimit:"速度制限", updateYtdlp:"🔄 yt-dlpを更新", updateGui:"🔧 機能を更新", updateApp:"⬆ アプリを更新",
+    updateAppChecking:"アプリの新しいバージョンを確認しています...",
+    updateAppUpToDate:"アプリは最新です (バージョン {v})。",
+    updateAppInstalling:"バージョン {v} をダウンロードしました。インストールを開始します...",
     updateGuiRestarting:"更新をダウンロードしてサーバーを再起動しています。少々お待ちください...",
     updateGuiTimeout:"更新後にサーバーが復帰しませんでした。Termuxを開いて手動で起動してみてください。",
     appearanceTitle:"外観と言語", appearance:"外観", language:"言語", dark:"ダーク", light:"ライト",
@@ -1025,6 +1047,21 @@ $("update-ytdlp").addEventListener("click", async () => {
   switchTab("logs");
   const result = await api.update_ytdlp();
   if (result && !result.ok) toast(result.error, "error");
+});
+// Nativni strana (UdlBridge.kt) vola tuhle funkci, az dokonci kontrolu
+// aktualizaci - @JavascriptInterface metody nemuzou vracet vysledek samy.
+window.udlUpdateResult = (status, message) => {
+  $("update-app").disabled = false;
+  if (status === "uptodate") toast(tr("updateAppUpToDate").replace("{v}", message));
+  else if (status === "installing") log(tr("updateAppInstalling").replace("{v}", message));
+  else toast(message, "error");
+};
+$("update-app").addEventListener("click", () => {
+  if (!window.UdlAndroid || typeof window.UdlAndroid.checkForAppUpdate !== "function") return;
+  switchTab("logs");
+  $("update-app").disabled = true;
+  log(tr("updateAppChecking"));
+  window.UdlAndroid.checkForAppUpdate();
 });
 $("update-gui").addEventListener("click", async () => {
   switchTab("logs");

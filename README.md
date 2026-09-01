@@ -130,12 +130,17 @@ No data leaves your phone - `127.0.0.1` never goes over the network.
 
 ### Keeping it up to date
 
-The APK is only a thin shell - the parts that actually change most often
-(`server.py`, `index.html`) live in Termux. To pull the latest versions of
-those, use **Settings -> Advanced -> "Update app"** in the app itself. It
-downloads fresh copies, restarts the local server, and reloads the page
-when it's back. You only need a new APK when the Android shell itself
-changes, which is rare.
+There are two separate things that can go out of date, so there are two
+buttons for it under **Settings -> Advanced**:
+
+- **"Update functions"** - pulls the latest `server.py` and `index.html`
+  into Termux and restarts the local server. This is where most changes
+  happen, so it's the one you'll use.
+- **"Update app"** - checks GitHub for a newer release and, if there is one,
+  downloads its APK and starts the installer. Only needed when the Android
+  shell itself changes, which is rare. Android will ask you to allow
+  installing apps from UniversalDownloader the first time; the app opens
+  that settings screen for you.
 
 (The same section also has **"Update yt-dlp"**, which just runs
 `pip install -U yt-dlp` - handy when a site changes and breaks downloads.)
