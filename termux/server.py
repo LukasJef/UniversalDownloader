@@ -46,7 +46,7 @@ MAX_CONSOLE_CHARS = 300_000
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("YTDLP_LOCAL_PORT", "47831"))
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 # Same domain the desktop/web version uses - the Termux server only ever
 # answers on 127.0.0.1, so CORS here really only matters if someone opens
@@ -63,7 +63,10 @@ SETTINGS_FILE = os.path.join(UDL_DIR, "settings.json")
 # ~/storage/downloads only exists after running "termux-setup-storage" (see
 # README) - it's a symlink to the real Download folder that's visible to
 # other apps too (gallery, file manager...), not just inside Termux.
-DEFAULT_OUTDIR = os.path.join(HOME, "storage", "downloads")
+# realpath() resolves the symlink so the UI shows the actual, meaningful
+# path (/storage/emulated/0/Download) instead of the internal Termux one.
+_RAW_OUTDIR = os.path.join(HOME, "storage", "downloads")
+DEFAULT_OUTDIR = os.path.realpath(_RAW_OUTDIR) if os.path.exists(_RAW_OUTDIR) else _RAW_OUTDIR
 
 
 # --------------------------------------------------------------------------- #
@@ -849,6 +852,9 @@ def ping():
         "version": VERSION,
         "yt_dlp_available": yt_dlp is not None,
         "ffmpeg_ok": api.poll()["ffmpeg_ok"],
+        # Lets the shared frontend know it's talking to the Termux build,
+        # which has no native folder picker - see index.html.
+        "platform": "termux",
     })
 
 
