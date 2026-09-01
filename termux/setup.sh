@@ -1,35 +1,35 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# setup.sh - jednorazova priprava Termuxu pro UniversalDownloader.
+# setup.sh - one-time setup of Termux for UniversalDownloader.
 #
-# Spustit uvnitr Termuxu (ne v Android appce):
+# Run this inside Termux (not in the Android app):
 #   curl -o setup.sh https://raw.githubusercontent.com/LukasJef/UniversalDownloader/main/termux/setup.sh
 #   bash setup.sh
 #
-# Co to dela:
-#   1) nainstaluje python + ffmpeg (realne, plnohodnotne - zadny ffmpeg-kit)
-#   2) nainstaluje yt-dlp/flask pres pip
-#   3) stahne server.py + index.html + console.html do ~/udl/
-#   4) zpristupni Android slozku Download uvnitr Termuxu (~/storage/downloads)
-#   5) povoli, aby appka UniversalDownloader mohla Termuxu posilat prikazy
+# What it does:
+#   1) installs python + ffmpeg (real, full-featured - no ffmpeg-kit)
+#   2) installs yt-dlp/flask via pip
+#   3) downloads server.py + index.html + console.html into ~/udl/
+#   4) exposes the Android Download folder inside Termux (~/storage/downloads)
+#   5) allows the UniversalDownloader app to send commands to Termux
 
 set -e
 
 REPO_RAW_BASE="https://raw.githubusercontent.com/LukasJef/UniversalDownloader/main"
 
-echo "== UniversalDownloader - priprava Termuxu =="
+echo "== UniversalDownloader - setting up Termux =="
 echo
 
-echo "[1/5] Instaluji python a ffmpeg..."
+echo "[1/5] Installing python and ffmpeg..."
 pkg update -y
 pkg install -y python ffmpeg
 
 echo
-echo "[2/5] Instaluji yt-dlp, flask, flask-cors..."
+echo "[2/5] Installing yt-dlp, flask, flask-cors..."
 pip install --upgrade pip
 pip install yt-dlp flask flask-cors
 
 echo
-echo "[3/5] Stahuji server.py, index.html, console.html do ~/udl/..."
+echo "[3/5] Downloading server.py, index.html, console.html into ~/udl/..."
 mkdir -p ~/udl
 curl -fsSL "$REPO_RAW_BASE/termux/server.py" -o ~/udl/server.py
 curl -fsSL "$REPO_RAW_BASE/index.html" -o ~/udl/index.html
@@ -37,12 +37,12 @@ curl -fsSL "$REPO_RAW_BASE/console.html" -o ~/udl/console.html
 chmod +x ~/udl/server.py
 
 echo
-echo "[4/5] Zpristupnuji slozku Download (potreba potvrdit v appce)..."
+echo "[4/5] Exposing the Download folder (you may need to confirm a permission prompt)..."
 termux-setup-storage
-sleep 2  # dat systemu chvili na zpracovani povoleni
+sleep 2  # give the system a moment to process the permission
 
 echo
-echo "[5/5] Povoluji, aby appka UniversalDownloader mohla spoustet prikazy v Termuxu..."
+echo "[5/5] Allowing the UniversalDownloader app to run commands in Termux..."
 mkdir -p ~/.termux
 PROPS=~/.termux/termux.properties
 if [ -f "$PROPS" ] && grep -q "^allow-external-apps" "$PROPS"; then
@@ -53,10 +53,10 @@ fi
 termux-reload-settings
 
 echo
-echo "== Hotovo =="
-echo "Muzes zkusit rucne spustit server prikazem:"
+echo "== Done =="
+echo "You can try starting the server manually with:"
 echo "    python ~/udl/server.py"
-echo "a otevrit http://127.0.0.1:47831 v prohlizeci na telefonu."
+echo "and opening http://127.0.0.1:47831 in a browser on your phone."
 echo
-echo "Pro plnou funkcnost (sdileni z YouTube atd.) nainstaluj Android appku"
-echo "UniversalDownloader - viz README v repozitari."
+echo "For full functionality (sharing links from YouTube etc.), install the"
+echo "UniversalDownloader Android app - see the README in the repository."

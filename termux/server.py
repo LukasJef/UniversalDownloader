@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-server.py - UniversalDownloader engine bezici primo v Termuxu (realny
-yt-dlp + realny ffmpeg na PATH, zadny Chaquopy, zadny ffmpeg-kit).
+server.py - UniversalDownloader engine running directly inside Termux (a
+real yt-dlp + a real ffmpeg on PATH, no Chaquopy, no ffmpeg-kit).
 
-Tohle je skoro doslovne to same jako engine + Flask server cast desktopoveho
-ytdlp_app.py - jen bez pywebview/pystray/autostart/hotkey (ty davaji smysl
-jen na desktopu) a s cestami upravenymi pro Termux prostredi.
+This is almost verbatim the same as the engine + Flask server part of the
+desktop ytdlp_app.py - just without the desktop-only parts (pywebview,
+pystray, autostart, hotkey) and with paths adapted for the Termux
+environment.
 
-Spousti se na pozadi pres Android appku (UniversalDownloader) volanim
-Termux RUN_COMMAND intentu - viz android/ slozka v repu. Appka pak proste
-otevre WebView na http://127.0.0.1:47831/, stejne jako desktopove okno.
+Started in the background by the Android app (UniversalDownloader) via a
+Termux RUN_COMMAND intent - see the android/ folder in this repo. The app
+then simply opens a WebView at http://127.0.0.1:47831/, exactly like the
+desktop window does.
 
-Rucni spusteni pro testovani:
+Manual run for testing:
     python3 server.py
 """
 
@@ -46,9 +48,9 @@ HOST = "127.0.0.1"
 PORT = int(os.environ.get("YTDLP_LOCAL_PORT", "47831"))
 VERSION = "1.0.1"
 
-# Stejna domena, co pouziva desktop/web verze - Termux server odpovida jen
-# na 127.0.0.1, takze CORS tady vlastne resi jen pripad, kdy by nekdo
-# otevrel udl.moviora.win primo v mobilnim prohlizeci se zapnutym Termuxem.
+# Same domain the desktop/web version uses - the Termux server only ever
+# answers on 127.0.0.1, so CORS here really only matters if someone opens
+# udl.moviora.win directly in a mobile browser with Termux running.
 ALLOWED_ORIGINS = [
     "https://udl.moviora.win",
     "http://localhost:5500",
@@ -58,15 +60,15 @@ ALLOWED_ORIGINS = [
 HOME = os.path.expanduser("~")
 UDL_DIR = os.path.join(HOME, "udl")
 SETTINGS_FILE = os.path.join(UDL_DIR, "settings.json")
-# ~/storage/downloads existuje az po spusteni "termux-setup-storage" (viz
-# README) - je to symlink na skutecnou slozku Download viditelnou i pro
-# ostatni appky (galerie, souborovy manazer...), ne jen uvnitr Termuxu.
+# ~/storage/downloads only exists after running "termux-setup-storage" (see
+# README) - it's a symlink to the real Download folder that's visible to
+# other apps too (gallery, file manager...), not just inside Termux.
 DEFAULT_OUTDIR = os.path.join(HOME, "storage", "downloads")
 
 
 # --------------------------------------------------------------------------- #
-#  Zachyceni stdout/stderr pro skrytou /console stranku - stejny princip     #
-#  jako na desktopu, uzitecne pro ladeni bez adb/logcat.                     #
+#  Capture stdout/stderr for the hidden /console page - same idea as on the  #
+#  desktop, useful for debugging without adb/logcat.                        #
 # --------------------------------------------------------------------------- #
 
 _console_buffer = []
@@ -111,7 +113,7 @@ sys.stderr = _ConsoleCapture(sys.stderr)
 
 
 # --------------------------------------------------------------------------- #
-#  Nastaveni                                                                   #
+#  Settings                                                                   #
 # --------------------------------------------------------------------------- #
 
 def load_settings():
@@ -158,7 +160,7 @@ def merged_settings():
 
 
 # --------------------------------------------------------------------------- #
-#  Ciste pomocne funkce (identicke s desktopovou verzi)                       #
+#  Pure helper functions (identical to the desktop version)                   #
 # --------------------------------------------------------------------------- #
 
 def sample_info(info):
@@ -277,8 +279,8 @@ def serialize_info(info):
     }
 
 
-# ISO 639-1 (2 znaky, format co pouziva yt-dlp/YouTube) -> ISO 639-2/B
-# (3 znaky, co vyzaduje MP4/MOV kontejner pro metadata:s:a jazyk).
+# ISO 639-1 (2 letters, the format yt-dlp/YouTube uses) -> ISO 639-2/B
+# (3 letters, required by MP4/MOV containers for metadata:s:a language tags).
 ISO_639_1_TO_2 = {
     "aa": "aar", "ab": "abk", "af": "afr", "ak": "aka", "sq": "alb", "am": "amh",
     "ar": "ara", "an": "arg", "hy": "arm", "as": "asm", "av": "ava", "ae": "ave",
@@ -358,7 +360,7 @@ def outtmpl_for(outdir, playlist, rename):
 
 
 # --------------------------------------------------------------------------- #
-#  API vystavene do JavaScriptu (index.html)                                  #
+#  API exposed to JavaScript (index.html)                                     #
 # --------------------------------------------------------------------------- #
 
 class Api:
@@ -433,12 +435,12 @@ class Api:
             save_settings(self._settings)
         return {"ok": True}
 
-    # -- dialogy / OS (Termux nema nativni file picker bez extra prace) --- #
+    # -- dialogs / OS (Termux has no native file picker without extra work) #
 
     def select_path(self, kind):
         if kind == "directory":
             return DEFAULT_OUTDIR
-        self._log("Vyber souboru zatim neni v Termux verzi podporovan.")
+        self._log("File picking isn't supported yet in the Termux version.")
         return ""
 
     def open_folder(self, path):
@@ -446,8 +448,8 @@ class Api:
             subprocess.run(["termux-open", path], check=True, capture_output=True)
             return {"ok": True}
         except Exception:
-            return {"ok": False, "error": "Otevreni slozky vyzaduje balicek Termux:API "
-                                           "(pkg install termux-api + appka Termux:API z F-Droidu)."}
+            return {"ok": False, "error": "Opening a folder requires the Termux:API package "
+                                           "(pkg install termux-api + the Termux:API app from F-Droid)."}
 
     def open_search(self, query):
         query = (query or "").strip()
@@ -459,7 +461,7 @@ class Api:
                 check=True, capture_output=True,
             )
         except Exception as exc:
-            self._log(f"Otevreni prohlizece selhalo (vyzaduje Termux:API): {exc}")
+            self._log(f"Opening the browser failed (requires Termux:API): {exc}")
         return {"ok": True}
 
     # -- yt-dlp common opts ----------------------------------------------- #
@@ -494,13 +496,13 @@ class Api:
         url = (url or "").strip()
         config = config if isinstance(config, dict) else {}
         if not url:
-            return {"ok": False, "error": "Vlozte URL adresu."}
+            return {"ok": False, "error": "Please enter a URL."}
         if yt_dlp is None:
-            return {"ok": False, "error": "Chybi modul yt-dlp."}
+            return {"ok": False, "error": "The yt-dlp module is missing."}
         if not self._try_start():
-            return {"ok": False, "error": "Uz prave neco bezi, pockejte prosim."}
+            return {"ok": False, "error": "Something is already running, please wait."}
         gen = self._gen
-        self._log(f"Nacitam informace: {url}")
+        self._log(f"Fetching info: {url}")
         threading.Thread(target=self._fetch_info_worker, args=(gen, url, config), daemon=True).start()
         return {"ok": True}
 
@@ -514,10 +516,10 @@ class Api:
                 return
             self.info = serialize_info(raw_info)
             self.info_rev += 1
-            self._log("Informace byly nacteny.")
+            self._log("Info fetched.")
         except Exception as exc:
             if gen == self._gen:
-                self._set_error("Nacteni informaci selhalo", exc)
+                self._set_error("Fetching info failed", exc)
         finally:
             self._finish(gen)
 
@@ -525,18 +527,18 @@ class Api:
         url = (url or "").strip()
         config = config if isinstance(config, dict) else {}
         if not url:
-            return {"ok": False, "error": "Vlozte URL adresu."}
+            return {"ok": False, "error": "Please enter a URL."}
         if yt_dlp is None:
-            return {"ok": False, "error": "Chybi modul yt-dlp."}
+            return {"ok": False, "error": "The yt-dlp module is missing."}
         outdir = (config.get("outdir") or "").strip()
         if not outdir:
-            return {"ok": False, "error": "Vyberte cilovou slozku."}
+            return {"ok": False, "error": "Please choose a destination folder."}
         try:
             os.makedirs(outdir, exist_ok=True)
         except OSError as exc:
-            return {"ok": False, "error": f"Cilovou slozku nelze vytvorit: {exc}"}
+            return {"ok": False, "error": f"Couldn't create the destination folder: {exc}"}
         if not self._try_start():
-            return {"ok": False, "error": "Uz prave neco bezi, pockejte prosim."}
+            return {"ok": False, "error": "Something is already running, please wait."}
 
         self._settings.update({
             "last_url": url, "outdir": outdir,
@@ -565,7 +567,7 @@ class Api:
                 ),
             }
         elif status == "finished":
-            self._log(f"Stazeno: {os.path.basename(data.get('filename') or '')}")
+            self._log(f"Downloaded: {os.path.basename(data.get('filename') or '')}")
 
     def _download_worker(self, gen, url, config, outdir):
         try:
@@ -580,12 +582,12 @@ class Api:
             elif mode == "thumb":
                 self._download_thumbnails(url, config, outdir)
             else:
-                raise RuntimeError(f"Neznamy mod: {mode}")
+                raise RuntimeError(f"Unknown mode: {mode}")
             if gen == self._gen:
-                self._set_done("Stahovani bylo uspesne dokonceno.")
+                self._set_done("Download completed successfully.")
         except Exception as exc:
             if gen == self._gen:
-                self._set_error("Stahovani selhalo", exc)
+                self._set_error("Download failed", exc)
         finally:
             self._finish(gen)
 
@@ -612,14 +614,14 @@ class Api:
         postprocessors = []
         if container != "auto":
             if not ffmpeg_available():
-                raise RuntimeError("ffmpeg nebyl nalezen - je potreba pro prevod kontejneru.")
+                raise RuntimeError("ffmpeg wasn't found - it's needed to convert the container.")
             postprocessors.append({"key": "FFmpegVideoConvertor", "preferedformat": container})
 
         has_manual = bool(config.get("has_manual_subs"))
         has_auto = bool(config.get("has_auto_subs"))
         if config.get("embed_subs") and (has_manual or has_auto):
             if not ffmpeg_available():
-                raise RuntimeError("ffmpeg nebyl nalezen - je potreba pro vlozeni titulku.")
+                raise RuntimeError("ffmpeg wasn't found - it's needed to embed subtitles.")
             options["writesubtitles"] = has_manual
             options["writeautomaticsub"] = (not has_manual) and has_auto
             options["subtitleslangs"] = ["all"]
@@ -627,7 +629,7 @@ class Api:
         if postprocessors:
             options["postprocessors"] = postprocessors
 
-        self._log(f"Stahuji video (format: {fmt})...")
+        self._log(f"Downloading video (format: {fmt})...")
         with yt_dlp.YoutubeDL(options) as downloader:
             info = downloader.extract_info(url, download=True)
 
@@ -652,9 +654,9 @@ class Api:
         try:
             subprocess.run(cmd, check=True, capture_output=True)
             os.replace(tmp_path, filepath)
-            self._log("Jazyky audio stop byly oznaceny v souboru.")
+            self._log("Audio track languages have been tagged in the file.")
         except Exception as exc:
-            self._log(f"Oznaceni jazyku stop selhalo (soubor je v poradku, jen bez metadat): {exc}")
+            self._log(f"Tagging track languages failed (the file is fine, just without metadata): {exc}")
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
@@ -672,18 +674,18 @@ class Api:
         convert = (config.get("audio_convert") or "none").lower()
         if convert != "none":
             if not ffmpeg_available():
-                raise RuntimeError("ffmpeg nebyl nalezen - je potreba pro prevod audia.")
+                raise RuntimeError("ffmpeg wasn't found - it's needed to convert audio.")
             options["postprocessors"] = [{
                 "key": "FFmpegExtractAudio", "preferredcodec": convert, "preferredquality": "192",
             }]
-        self._log(f"Stahuji audio (format: {fmt})...")
+        self._log(f"Downloading audio (format: {fmt})...")
         with yt_dlp.YoutubeDL(options) as downloader:
             downloader.download([url])
 
     def _download_subtitles(self, url, config, outdir, playlist):
         language = config.get("subtitle_language")
         if not language:
-            raise RuntimeError("Pro toto video nejsou k dispozici titulky.")
+            raise RuntimeError("No subtitles are available for this video.")
         source = config.get("subtitle_source", "original")
         options = self._common_opts(config)
         options.update({
@@ -695,7 +697,7 @@ class Api:
             "outtmpl": outtmpl_for(outdir, playlist, config.get("rename")),
             "progress_hooks": [self._progress_hook],
         })
-        self._log(f"Stahuji titulky ({language})...")
+        self._log(f"Downloading subtitles ({language})...")
         with yt_dlp.YoutubeDL(options) as downloader:
             downloader.download([url])
 
@@ -716,12 +718,12 @@ class Api:
             selected = thumbnails[min(selected_index, len(thumbnails) - 1)]
             ext = guess_ext_from_url(selected["url"])
             base = sanitize_filename(rename) if rename else sanitize_filename(entry.get("title") or "thumbnail")
-            filename = os.path.join(outdir, f"{base}_nahled.{ext}")
-            self._log(f"Stahuji nahled: {os.path.basename(filename)}")
+            filename = os.path.join(outdir, f"{base}_thumbnail.{ext}")
+            self._log(f"Downloading thumbnail: {os.path.basename(filename)}")
             urllib.request.urlretrieve(selected["url"], filename)
             if convert != "none" and convert != ext:
                 if not ffmpeg_available():
-                    self._log("ffmpeg nenalezen - preskakuji prevod nahledu.")
+                    self._log("ffmpeg not found - skipping thumbnail conversion.")
                     continue
                 filename = self._ffmpeg_convert(filename, convert)
 
@@ -733,18 +735,18 @@ class Api:
                 os.remove(source)
             return output
         except Exception as exc:
-            self._log(f"Prevod obrazku selhal: {exc}")
+            self._log(f"Image conversion failed: {exc}")
             return source
 
     def convert_file(self, source, target):
         source = (source or "").strip()
         target = (target or "mp3").strip().lower()
         if not os.path.isfile(source):
-            return {"ok": False, "error": "Vyberte platny zdrojovy soubor."}
+            return {"ok": False, "error": "Please choose a valid source file."}
         if not ffmpeg_available():
-            return {"ok": False, "error": "ffmpeg nebyl nalezen."}
+            return {"ok": False, "error": "ffmpeg wasn't found."}
         if not self._try_start():
-            return {"ok": False, "error": "Uz prave neco bezi, pockejte prosim."}
+            return {"ok": False, "error": "Something is already running, please wait."}
         gen = self._gen
         output = os.path.splitext(source)[0] + "_converted." + target
         threading.Thread(target=self._convert_worker, args=(gen, source, output), daemon=True).start()
@@ -765,25 +767,25 @@ class Api:
                         self._log(line)
             process.wait()
             if process.returncode != 0:
-                raise RuntimeError(f"FFmpeg skoncilo s kodem {process.returncode}.")
+                raise RuntimeError(f"FFmpeg exited with code {process.returncode}.")
             if gen == self._gen:
-                self._set_done("Konverze byla uspesne dokoncena.")
+                self._set_done("Conversion completed successfully.")
         except Exception as exc:
             if gen == self._gen:
-                self._set_error("Konverze selhala", exc)
+                self._set_error("Conversion failed", exc)
         finally:
             self._finish(gen)
 
     def update_ytdlp(self):
         if not self._try_start():
-            return {"ok": False, "error": "Uz prave neco bezi, pockejte prosim."}
+            return {"ok": False, "error": "Something is already running, please wait."}
         gen = self._gen
         threading.Thread(target=self._update_worker, args=(gen,), daemon=True).start()
         return {"ok": True}
 
     def _update_worker(self, gen):
         try:
-            self._log("Aktualizuji yt-dlp...")
+            self._log("Updating yt-dlp...")
             result = subprocess.run([sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
                                      capture_output=True, text=True)
             if result.stdout:
@@ -791,12 +793,12 @@ class Api:
             if result.stderr:
                 self._log(result.stderr.strip())
             if result.returncode != 0:
-                raise RuntimeError(f"pip skoncil s kodem {result.returncode}.")
+                raise RuntimeError(f"pip exited with code {result.returncode}.")
             if gen == self._gen:
-                self._set_done("yt-dlp byl aktualizovan.")
+                self._set_done("yt-dlp has been updated.")
         except Exception as exc:
             if gen == self._gen:
-                self._set_error("Aktualizace selhala", exc)
+                self._set_error("Update failed", exc)
         finally:
             self._finish(gen)
 
@@ -821,8 +823,8 @@ def _read_html(filename, fallback):
         return fallback
 
 
-_INDEX_HTML = _read_html("index.html", "<h1>index.html nebyl nalezen ve slozce se server.py</h1>")
-_CONSOLE_HTML = _read_html("console.html", "<h1>console.html nebyl nalezen ve slozce se server.py</h1>")
+_INDEX_HTML = _read_html("index.html", "<h1>index.html was not found next to server.py</h1>")
+_CONSOLE_HTML = _read_html("console.html", "<h1>console.html was not found next to server.py</h1>")
 
 
 @app.get("/")
