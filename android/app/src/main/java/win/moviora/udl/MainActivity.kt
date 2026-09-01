@@ -188,10 +188,10 @@ private fun UdlWebView(sharedUrl: String?) {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 webViewClient = WebViewClient()
-                // navigator.clipboard neni v Android WebView pouzitelne, takze
-                // ctenim schranky poverime nativni stranu - viz index.html,
-                // funkce paste() zkousi window.UdlAndroid.readClipboard().
-                addJavascriptInterface(ClipboardBridge(context), "UdlAndroid")
+                // navigator.clipboard neni v Android WebView pouzitelne a
+                // instalaci APK taky musi resit nativni strana - viz UdlBridge.
+                addJavascriptInterface(UdlBridge(context), "UdlAndroid")
+                UdlBridge.webViewRef = this
             }
         },
         update = { webView ->
@@ -205,11 +205,13 @@ private fun UdlWebView(sharedUrl: String?) {
 }
 
 /**
- * Zpristupnuje systemovou schranku JavaScriptu ve WebView. Vystavena je
- * zamerne jen tahle jedna metoda (cteni textu) - nic jineho stranka
- * potrebovat nema a nic jineho ji tedy nedavame.
+ * Most mezi strankou ve WebView a nativni Android vrstvou. Vystavujeme
+ * zamerne jen to malo, co stranka opravdu potrebuje a co v samotnem
+ * WebView udelat nejde.
  */
-private class ClipboardBridge(private val context: Context) {
+private class UdlBridge(private val context: Context) {
+
+    /** navigator.clipboard v Android WebView nefunguje, tohle ano. */
     @JavascriptInterface
     fun readClipboard(): String {
         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -217,5 +219,37 @@ private class ClipboardBridge(private val context: Context) {
         val clip = manager.primaryClip ?: return ""
         if (clip.itemCount == 0) return ""
         return clip.getItemAt(0).coerceToText(context)?.toString() ?: ""
+    }
+
+    /** Verze APK, tak jak je nastavena v build.gradle.kts (versionName). */
+    @JavascriptInterface
+    fun appVersion(): String = UpdateChecker.installedVersion(context)
+
+    /**
+     * Zjisti nejnovejsi release na GitHubu a pripadne spusti instalaci.
+     * Vysledek posleme zpet do stranky jako zavolani window.udlUpdateResult(),
+     * protoze @JavascriptInterface metoda nemuze vratit vysledek asynchronne.
+     */
+    @JavascriptInterface
+    fun checkForAppUpdate() {
+        UpdateChecker.checkAndInstall(context) { result ->
+            val (status, message) = when (result) {
+                is UpdateResult.UpToDate -> "uptodate" to result.version
+                is UpdateResult.Installing -> "installing" to result.version
+                is UpdateResult.Failed -> "failed" to result.message
+            }
+            val safeMessage = message.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
+            webViewRef?.post {
+                webViewRef?.evaluateJavascript(
+                    "window.udlUpdateResult && window.udlUpdateResult('$status', '$safeMessage')",
+                    null,
+                )
+            }
+        }
+    }
+
+    companion object {
+        /** Nastavuje UdlWebView, aby sem sla poslat odpoved zpet do stranky. */
+        var webViewRef: WebView? = null
     }
 }

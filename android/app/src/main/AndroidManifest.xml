@@ -4,6 +4,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Umoznuje appce spustit instalaci stazeneho APK (aktualizace sama sebe).
+         Uzivatel to stejne musi jeste rucne povolit v systemovem nastaveni -
+         viz UpdateChecker.kt, ktere ho tam v pripade potreby posle. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Bez tohohle Termuxu vubec neposleme prikaz - viz TermuxController.kt -->
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 
@@ -55,6 +60,18 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- Android nedovoli predat systemovemu instalatoru primo file:// cestu,
+             musi to byt content:// URI z FileProvideru. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

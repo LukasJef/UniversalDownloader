@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Definuje, ktere slozky smi FileProvider zpristupnit ostatnim appkam.
+  Zamerne jen "updates" podslozka v privatnim uloziste appky - jedine, co
+  potrebujeme predat systemovemu instalatoru, je tam stazene APK.
+-->
+<paths>
+    <external-files-path
+        name="updates"
+        path="updates/" />
+</paths>
