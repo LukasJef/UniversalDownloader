@@ -1,8 +1,11 @@
 package win.moviora.udl
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
@@ -185,6 +188,10 @@ private fun UdlWebView(sharedUrl: String?) {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 webViewClient = WebViewClient()
+                // navigator.clipboard neni v Android WebView pouzitelne, takze
+                // ctenim schranky poverime nativni stranu - viz index.html,
+                // funkce paste() zkousi window.UdlAndroid.readClipboard().
+                addJavascriptInterface(ClipboardBridge(context), "UdlAndroid")
             }
         },
         update = { webView ->
@@ -195,4 +202,20 @@ private fun UdlWebView(sharedUrl: String?) {
             webView.loadUrl(target)
         },
     )
+}
+
+/**
+ * Zpristupnuje systemovou schranku JavaScriptu ve WebView. Vystavena je
+ * zamerne jen tahle jedna metoda (cteni textu) - nic jineho stranka
+ * potrebovat nema a nic jineho ji tedy nedavame.
+ */
+private class ClipboardBridge(private val context: Context) {
+    @JavascriptInterface
+    fun readClipboard(): String {
+        val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            ?: return ""
+        val clip = manager.primaryClip ?: return ""
+        if (clip.itemCount == 0) return ""
+        return clip.getItemAt(0).coerceToText(context)?.toString() ?: ""
+    }
 }
