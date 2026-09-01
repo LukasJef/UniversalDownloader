@@ -113,7 +113,7 @@ No data leaves your phone - `127.0.0.1` never goes over the network.
    **not** the Play Store version, which is outdated and no longer maintained.
 2. Open Termux and run the setup script:
    ```bash
-   curl -o setup.sh https://raw.githubusercontent.com/LukasJef/UniversalDownloader/main/termux/setup.sh
+   curl -o setup.sh https://udl.moviora.win/termux/setup.sh
    bash setup.sh
    ```
    This installs `python`/`ffmpeg`, installs `yt-dlp`/`flask`/`flask-cors`,
