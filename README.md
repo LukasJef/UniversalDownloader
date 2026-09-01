@@ -128,6 +128,33 @@ No data leaves your phone - `127.0.0.1` never goes over the network.
    server is running in the background), then open the app or share a link
    to it - it'll find the server at `127.0.0.1:47831` automatically.
 
+### Keeping it up to date
+
+The APK is only a thin shell - the parts that actually change most often
+(`server.py`, `index.html`) live in Termux. To pull the latest versions of
+those, use **Settings -> Advanced -> "Update app"** in the app itself. It
+downloads fresh copies, restarts the local server, and reloads the page
+when it's back. You only need a new APK when the Android shell itself
+changes, which is rare.
+
+(The same section also has **"Update yt-dlp"**, which just runs
+`pip install -U yt-dlp` - handy when a site changes and breaks downloads.)
+
+### Android-specific differences
+
+The interface is the same `index.html` as on desktop, with a few things
+adjusted or hidden because they can't work inside Termux:
+
+- The output folder field has a fixed `/storage/emulated/0/` prefix, so you
+  only type the part after it (`Download`, `Movies/UDL`, ...). Typing a full
+  absolute path still works if you want somewhere else entirely.
+- **Browse** buttons are hidden - Termux has no system file picker, so paths
+  are typed in directly.
+- **Cookies "From browser"** is hidden. It works by reading a desktop
+  browser's profile files, and Android's app sandboxing makes that
+  impossible; use a `cookies.txt` file instead.
+- **Find manually** is hidden (it needs the optional Termux:API add-on).
+
 > **Why not fully automatic?** The app *can* try to ask Termux to start the
 > server itself, using Termux's official `RUN_COMMAND` intent. In practice
 > Android usually won't let it - custom permissions declared by another app
@@ -191,8 +218,8 @@ from the recent-apps list.
 ### Known limitations
 
 - No native folder picker yet (downloads always go to your phone's normal
-  Downloads folder).
-- `Open folder` / `Find manually` (opening a browser search) need the
+  Downloads folder unless you type a different path).
+- `Open folder` (opening the download folder in a file manager) needs the
   separate `Termux:API` add-on (`pkg install termux-api` + the Termux:API
   app from F-Droid) - optional, everything else works without it.
 - Only one client at a time gets the live log messages, so don't keep the

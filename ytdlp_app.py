@@ -965,7 +965,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5500",
 ]
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 app = Flask(__name__)
 CORS(app, origins=ALLOWED_ORIGINS)

@@ -46,7 +46,7 @@ MAX_CONSOLE_CHARS = 300_000
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("YTDLP_LOCAL_PORT", "47831"))
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 # Same domain the desktop/web version uses - the Termux server only ever
 # answers on 127.0.0.1, so CORS here really only matters if someone opens
