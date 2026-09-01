@@ -34,6 +34,14 @@ pip install yt-dlp flask flask-cors
 echo
 echo "[3/5] Downloading server.py, index.html, console.html into ~/udl/..."
 mkdir -p ~/udl
+# Zastavime pripadny bezici server jeste PRED stazenim - jinak by dal bezel
+# na stare verzi souboru (server.py i index.html se ctou jen jednou pri startu)
+# a uzivatel by po aktualizaci nevidel zadnou zmenu.
+if [ -f ~/udl/server.pid ]; then
+    kill "$(cat ~/udl/server.pid)" 2>/dev/null && echo "    (stopping the running server first)"
+    rm -f ~/udl/server.pid
+    sleep 1
+fi
 curl -fsSL "$REPO_RAW_BASE/termux/server.py" -o ~/udl/server.py
 curl -fsSL "$REPO_RAW_BASE/index.html" -o ~/udl/index.html
 curl -fsSL "$REPO_RAW_BASE/console.html" -o ~/udl/console.html

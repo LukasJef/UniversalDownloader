@@ -57,6 +57,9 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5500",
 ]
 
+REPO_RAW_BASE = "https://raw.githubusercontent.com/LukasJef/UniversalDownloader/main"
+SETUP_SCRIPT_URL = f"{REPO_RAW_BASE}/termux/setup.sh"
+
 HOME = os.path.expanduser("~")
 UDL_DIR = os.path.join(HOME, "udl")
 SETTINGS_FILE = os.path.join(UDL_DIR, "settings.json")
@@ -786,6 +789,39 @@ class Api:
         threading.Thread(target=self._update_worker, args=(gen,), daemon=True).start()
         return {"ok": True}
 
+    def update_gui(self):
+        """Re-runs setup.sh, which pulls fresh copies of server.py, index.html
+        and console.html and restarts the server. Because that restart kills
+        *this* process, the script has to be launched fully detached - it
+        keeps running after we're gone, and the app simply reconnects once
+        the new server is up."""
+        script_path = os.path.join(UDL_DIR, "setup.sh")
+        log_path = os.path.join(UDL_DIR, "update.log")
+        try:
+            urllib.request.urlretrieve(SETUP_SCRIPT_URL, script_path)
+        except Exception as exc:
+            return {"ok": False, "error": f"Couldn't download setup.sh: {exc}"}
+
+        try:
+            with open(log_path, "wb") as log_handle:
+                subprocess.Popen(
+                    ["bash", script_path],
+                    cwd=UDL_DIR,
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                    # start_new_session detaches the child from this process
+                    # group, so killing the server won't take the updater down
+                    # with it halfway through.
+                    start_new_session=True,
+                )
+        except Exception as exc:
+            return {"ok": False, "error": f"Couldn't start the updater: {exc}"}
+
+        self._log("Updating GUI files and restarting the server...")
+        self._log("The app will reconnect automatically in a few seconds.")
+        return {"ok": True}
+
     def _update_worker(self, gen):
         try:
             self._log("Updating yt-dlp...")
@@ -911,6 +947,11 @@ def convert_file_route():
 @app.post("/api/update_ytdlp")
 def update_ytdlp_route():
     return jsonify(api.update_ytdlp())
+
+
+@app.post("/api/update_gui")
+def update_gui_route():
+    return jsonify(api.update_gui())
 
 
 def main():
