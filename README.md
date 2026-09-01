@@ -96,11 +96,11 @@ that powers the desktop app and the website, inside [Termux](https://termux.dev/
 1. **Termux** runs `termux/server.py` - basically `ytdlp_app.py`'s engine and
    Flask server, without the desktop-only parts (tray icon, pywebview window,
    autostart). It listens on `127.0.0.1:47831`, exactly like the desktop app.
+   The setup script below makes it start automatically every time you open
+   Termux, so it's normally just running quietly in the background.
 2. The **UniversalDownloader Android app** (`android/` folder) doesn't embed
-   Python at all. It just asks Termux to start that server via the official
-   [`RUN_COMMAND` intent](https://github.com/termux/termux-app/wiki/RUN_COMMAND-Intent),
-   then shows the same `index.html` in a `WebView` - identical UI to desktop
-   and web.
+   Python at all. It just checks whether that server is reachable and shows
+   the same `index.html` in a `WebView` - identical UI to desktop and web.
 3. Sharing a link from another app ("Share" to UniversalDownloader) forwards
    the URL straight into that `WebView`, same as the desktop share flow.
 
@@ -113,33 +113,33 @@ No data leaves your phone - `127.0.0.1` never goes over the network.
    **not** the Play Store version, which is outdated and no longer maintained.
 2. Open Termux and run the setup script:
    ```bash
-   curl -o setup.sh https://udl.moviora.win/termux/setup.sh
+   curl -o setup.sh https://raw.githubusercontent.com/LukasJef/UniversalDownloader/main/termux/setup.sh
    bash setup.sh
    ```
    This installs `python`/`ffmpeg`, installs `yt-dlp`/`flask`/`flask-cors`,
    downloads `server.py` + `index.html` + `console.html` into `~/udl/`, runs
    `termux-setup-storage` (so downloads land in your normal Android Downloads
-   folder, not hidden inside Termux), and enables `allow-external-apps` in
-   `~/.termux/termux.properties` so the Android app is allowed to run
-   commands in Termux at all.
-
-   If that last part doesn't take effect for some reason, you can always do
-   it by hand:
-   ```bash
-   nano ~/.termux/termux.properties
-   ```
-   uncomment/add the line `allow-external-apps = true`, save (`Ctrl+O`,
-   `Enter`, `Ctrl+X`), then run `termux-reload-settings`.
+   folder, not hidden inside Termux), and adds a small snippet to `~/.bashrc`
+   so the server starts by itself every time you open Termux from then on.
 3. **Install the UniversalDownloader Android app** - either grab the APK from
    [Releases](../../releases) (once available for your version) or build it
    yourself from the `android/` folder in Android Studio.
-4. The first time you open the app (or share a link to it), Android will ask
-   you to grant it permission to **"Run commands in Termux environment"**
-   (under the app's own permissions page) - allow it. Without this, the app
-   can't ask Termux to start the server at all.
-5. That's it. Opening the app (or sharing a link) will start the Termux
-   server automatically if it isn't already running, then show the same
-   interface as desktop/web.
+4. That's it. Just make sure Termux has been opened at least once (so the
+   server is running in the background), then open the app or share a link
+   to it - it'll find the server at `127.0.0.1:47831` automatically.
+
+> **Why not fully automatic?** The app *can* try to ask Termux to start the
+> server itself, using Termux's official `RUN_COMMAND` intent. In practice
+> Android usually won't let it - custom permissions declared by another app
+> (rather than by Android itself) often don't show up as a grantable toggle
+> in Settings, and the only reliable way to grant it is via `adb`:
+> ```bash
+> adb shell pm grant win.moviora.udl com.termux.permission.RUN_COMMAND
+> ```
+> This is a known limitation of Android's permission system (the same one
+> official Termux plugins like Termux:Tasker run into), not something this
+> app can fix on its own. It's entirely optional - the auto-start snippet
+> from step 2 already covers normal use without it.
 
 ### Known limitations
 
