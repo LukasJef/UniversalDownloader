@@ -19,13 +19,16 @@ REPO_RAW_BASE="https://raw.githubusercontent.com/LukasJef/UniversalDownloader/ma
 echo "== UniversalDownloader - setting up Termux =="
 echo
 
-echo "[1/5] Installing python and ffmpeg..."
+echo "[1/5] Installing python, pip and ffmpeg..."
 pkg update -y
-pkg install -y python ffmpeg
+pkg install -y python python-pip ffmpeg
 
 echo
 echo "[2/5] Installing yt-dlp, flask, flask-cors..."
-pip install --upgrade pip
+# NOTE: do NOT run "pip install --upgrade pip" in Termux - pip here is
+# managed by the python-pip package above, and self-upgrading it via pip
+# is blocked by Termux on purpose ("installing pip is forbidden, this will
+# break the python-pip package") to keep it in sync with the Python build.
 pip install yt-dlp flask flask-cors
 
 echo
