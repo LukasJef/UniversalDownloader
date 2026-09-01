@@ -81,19 +81,88 @@ GitHub Actions (`.github/workflows/build.yml`) does this automatically for Windo
 
 [udl.moviora.win](https://udl.moviora.win) is a static page that talks to the very same local service running on your machine at `127.0.0.1:47831`. If the service isn't detected, the page offers the installer for your OS instead. No separate web backend — it's the same `ytdlp_app.py` you already run locally.
 
-## Android (experimental)
+## Android
 
-The `android/` folder contains an early, work-in-progress Android app (Kotlin + Chaquopy, embedding the same Python engine and `index.html`). It supports sharing a link straight from other apps ("Share" → UniversalDownloader) and includes an experimental integration with [ffmpeg-kit-extended](https://github.com/akashskypatel/ffmpeg-kit-extended) for merging separately-streamed video+audio. This isn't part of the regular releases yet — build it yourself from Android Studio if you want to try it.
+Instead of bundling a whole Python/ffmpeg runtime inside the app (which was tried
+with Chaquopy + [ffmpeg-kit-extended](https://github.com/akashskypatel/ffmpeg-kit-extended)
+and turned out fragile - broken builds, missing native libraries, huge APKs),
+the Android app takes a simpler approach: it runs the **exact same engine**
+that powers the desktop app and the website, inside [Termux](https://termux.dev/)
+- a real Linux environment for Android with a genuine `yt-dlp` and a genuine
+`ffmpeg`, no compromises.
+
+### How it works
+
+1. **Termux** runs `termux/server.py` - basically `ytdlp_app.py`'s engine and
+   Flask server, without the desktop-only parts (tray icon, pywebview window,
+   autostart). It listens on `127.0.0.1:47831`, exactly like the desktop app.
+2. The **UniversalDownloader Android app** (`android/` folder) doesn't embed
+   Python at all. It just asks Termux to start that server via the official
+   [`RUN_COMMAND` intent](https://github.com/termux/termux-app/wiki/RUN_COMMAND-Intent),
+   then shows the same `index.html` in a `WebView` - identical UI to desktop
+   and web.
+3. Sharing a link from another app ("Share" to UniversalDownloader) forwards
+   the URL straight into that `WebView`, same as the desktop share flow.
+
+No data leaves your phone - `127.0.0.1` never goes over the network.
+
+### Setup (one-time)
+
+1. **Install Termux** from [F-Droid](https://f-droid.org/packages/com.termux/)
+   or the [GitHub releases](https://github.com/termux/termux-app/releases) -
+   **not** the Play Store version, which is outdated and no longer maintained.
+2. Open Termux and run the setup script:
+   ```bash
+   curl -o setup.sh https://raw.githubusercontent.com/LukasJef/UniversalDownloader/main/termux/setup.sh
+   bash setup.sh
+   ```
+   This installs `python`/`ffmpeg`, installs `yt-dlp`/`flask`/`flask-cors`,
+   downloads `server.py` + `index.html` + `console.html` into `~/udl/`, runs
+   `termux-setup-storage` (so downloads land in your normal Android Downloads
+   folder, not hidden inside Termux), and enables `allow-external-apps` in
+   `~/.termux/termux.properties` so the Android app is allowed to run
+   commands in Termux at all.
+
+   If that last part doesn't take effect for some reason, you can always do
+   it by hand:
+   ```bash
+   nano ~/.termux/termux.properties
+   ```
+   uncomment/add the line `allow-external-apps = true`, save (`Ctrl+O`,
+   `Enter`, `Ctrl+X`), then run `termux-reload-settings`.
+3. **Install the UniversalDownloader Android app** - either grab the APK from
+   [Releases](../../releases) (once available for your version) or build it
+   yourself from the `android/` folder in Android Studio.
+4. The first time you open the app (or share a link to it), Android will ask
+   you to grant it permission to **"Run commands in Termux environment"**
+   (under the app's own permissions page) - allow it. Without this, the app
+   can't ask Termux to start the server at all.
+5. That's it. Opening the app (or sharing a link) will start the Termux
+   server automatically if it isn't already running, then show the same
+   interface as desktop/web.
+
+### Known limitations
+
+- No native folder picker yet (downloads always go to
+  `~/storage/downloads`, i.e. your phone's normal Downloads folder).
+- Android can be aggressive about killing background processes. If the
+  server keeps getting killed, disable battery optimization for Termux
+  (`Android Settings -> Apps -> Termux -> Battery -> Unrestricted`).
+- `Open folder` / `Find manually` (opening a browser search) need the
+  separate `Termux:API` add-on (`pkg install termux-api` + the Termux:API
+  app from F-Droid) - optional, everything else works without it.
 
 ## Project layout
 
 ```
-ytdlp_app.py               single unified app (engine + local server + desktop shell)
-index.html                 shared frontend for the desktop window and the website
-console.html                hidden raw stdout/stderr viewer (/console)
+ytdlp_app.py               single unified desktop app (engine + local server + desktop shell)
+index.html                  shared frontend for desktop, web, and Android
+console.html                 hidden raw stdout/stderr viewer (/console)
 requirements.txt
 .github/workflows/build.yml
-android/                   experimental Android app (see above)
+termux/server.py            same engine, adapted to run standalone inside Termux (Android)
+termux/setup.sh              one-time Termux setup script (see Android section above)
+android/                    Android app - orchestrates the Termux server, shows index.html in a WebView
 ```
 
 ## Disclaimer
