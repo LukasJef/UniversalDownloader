@@ -319,13 +319,15 @@ async function boot() {
   if (statusEl) statusEl.textContent = tr("gateSearching");
   const info = await pingLocalService();
   if (info && info.ok) {
-    // Termux build nema systemovy vyber slozky - misto nefunkcniho tlacitka
-    // "Prochazet" ukazeme napovedu, ze cestu jde prepsat rucne.
+    // Termux build nema systemovy vyber souboru/slozky - misto nefunkcnich
+    // tlacitek "Prochazet" ukazeme napovedu, ze cestu jde napsat rucne.
     isTermux = info.platform === "termux";
     if (isTermux) {
-      const browseBtn = document.getElementById("browse-outdir");
+      ["browse-outdir", "browse-cookie", "browse-ffmpeg"].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.add("hidden");
+      });
       const hint = document.getElementById("outdir-hint");
-      if (browseBtn) browseBtn.classList.add("hidden");
       if (hint) hint.classList.remove("hidden");
     }
     document.getElementById("install-gate").classList.add("hidden");

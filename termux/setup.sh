@@ -60,6 +60,9 @@ if ! grep -qF "$START_SNIPPET" "$BASHRC" 2>/dev/null; then
 UDL_PID_FILE=~/udl/server.pid
 if [ -f ~/udl/server.py ]; then
     if [ ! -f "$UDL_PID_FILE" ] || ! kill -0 "$(cat "$UDL_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+        # Keeps the CPU awake so Android is less eager to suspend the server.
+        # (Does NOT bypass Android 12+'s phantom process killer - see README.)
+        termux-wake-lock 2>/dev/null
         nohup python ~/udl/server.py > ~/udl/server.log 2>&1 &
         echo $! > "$UDL_PID_FILE"
     fi
@@ -71,6 +74,7 @@ fi
 # Start it right now too, for this session, so it's ready immediately.
 UDL_PID_FILE=~/udl/server.pid
 if [ ! -f "$UDL_PID_FILE" ] || ! kill -0 "$(cat "$UDL_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+    termux-wake-lock 2>/dev/null
     nohup python ~/udl/server.py > ~/udl/server.log 2>&1 &
     echo $! > "$UDL_PID_FILE"
 fi
@@ -81,7 +85,7 @@ echo "The server now starts automatically every time you open Termux - just"
 echo "open the Termux app (it can stay in the background) and the"
 echo "UniversalDownloader Android app will find it at http://127.0.0.1:47831."
 echo
-echo "(Optional, for advanced users: the UniversalDownloader app can also try"
-echo "to start the server itself via Termux's RUN_COMMAND intent, but Android"
-echo "usually requires granting that permission through adb - see the README"
-echo "if you want to set that up. It isn't necessary for normal use.)"
+echo "IMPORTANT (Android 12 and newer): Android has a 'phantom process killer'"
+echo "that silently kills background processes started by apps like Termux."
+echo "If the server keeps dying when you switch away from Termux, you need to"
+echo "turn that off - see the Android section of the README for how."

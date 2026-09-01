@@ -113,7 +113,7 @@ No data leaves your phone - `127.0.0.1` never goes over the network.
    **not** the Play Store version, which is outdated and no longer maintained.
 2. Open Termux and run the setup script:
    ```bash
-   curl -o setup.sh https://udl.moviora.win/termux/setup.sh
+   curl -o setup.sh https://raw.githubusercontent.com/LukasJef/UniversalDownloader/main/termux/setup.sh
    bash setup.sh
    ```
    This installs `python`/`ffmpeg`, installs `yt-dlp`/`flask`/`flask-cors`,
@@ -141,16 +141,48 @@ No data leaves your phone - `127.0.0.1` never goes over the network.
 > app can fix on its own. It's entirely optional - the auto-start snippet
 > from step 2 already covers normal use without it.
 
+### Important: Android 12+ kills background processes
+
+This is the single most likely reason for the app to say the server isn't
+running even though you just started it. Since Android 12, the system has a
+**phantom process killer** that silently kills processes spawned by apps
+(exactly what our Python server is) once a system-wide limit is hit or when
+the parent app goes to the background. It's a
+[well-known problem](https://github.com/termux/termux-app/issues/2366) that
+breaks Termux generally, not something this app can work around from its
+own code.
+
+Symptoms: the server works while Termux is in the foreground, then stops
+responding the moment you switch to another app - or works only if you open
+the apps in a particular order.
+
+**On Android 13 and newer** you can turn it off in the system settings:
+
+1. Settings -> About phone -> tap **Build number** 7 times to unlock
+   Developer options
+2. Settings -> System -> **Developer options**
+3. Find **Feature flags** -> turn off `settings_enable_monitor_phantom_procs`
+
+**On Android 12/12L** (no toggle in the UI) it takes one `adb` command from
+a computer:
+
+```bash
+adb shell "/system/bin/device_config put activity_manager max_phantom_processes 2147483647"
+```
+
+Also worth doing either way: set Termux's battery usage to **Unrestricted**
+(Settings -> Apps -> Termux -> Battery), and leave Termux running in the
+background rather than swiping it away.
+
 ### Known limitations
 
-- No native folder picker yet (downloads always go to
-  `~/storage/downloads`, i.e. your phone's normal Downloads folder).
-- Android can be aggressive about killing background processes. If the
-  server keeps getting killed, disable battery optimization for Termux
-  (`Android Settings -> Apps -> Termux -> Battery -> Unrestricted`).
+- No native folder picker yet (downloads always go to your phone's normal
+  Downloads folder).
 - `Open folder` / `Find manually` (opening a browser search) need the
   separate `Termux:API` add-on (`pkg install termux-api` + the Termux:API
   app from F-Droid) - optional, everything else works without it.
+- Only one client at a time gets the live log messages, so don't keep the
+  app and the website open side by side - they'll each see only part of it.
 
 ## Project layout
 
