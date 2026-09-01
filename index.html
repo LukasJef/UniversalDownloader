@@ -45,10 +45,7 @@
   <div class="glass w-full rounded-3xl p-6">
     <p data-i18n="gateDownloadLabel" class="mb-4 text-xs uppercase tracking-widest text-gray-500">Download and install</p>
     <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
-      <!-- TODO: once the installer is ready, replace "#" with real GitHub Releases links -->
-      <a id="download-windows" href="#" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold transition hover:bg-indigo-500">🪟 Windows (setup.exe)</a>
-      <a id="download-mac" href="#" class="rounded-xl border border-line bg-gray-800/60 px-5 py-3 text-sm font-medium transition hover:bg-gray-700">🍎 macOS</a>
-      <a id="download-linux" href="#" class="rounded-xl border border-line bg-gray-800/60 px-5 py-3 text-sm font-medium transition hover:bg-gray-700">🐧 Linux</a>
+      <a id="download-release" href="https://github.com/LukasJef/UniversalDownloader/releases" target="_blank" rel="noopener" class="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold transition hover:bg-indigo-500" data-i18n="downloadButton">Download from GitHub Releases</a>
     </div>
     <p data-i18n="gateInstallerNote" class="mt-4 text-xs text-gray-500">The installer registers a service that runs in the background and starts with your computer.</p>
   </div>
@@ -327,9 +324,6 @@ async function boot() {
     document.getElementById("install-gate").classList.remove("hidden");
     document.getElementById("app-root").classList.add("hidden");
     if (statusEl) statusEl.textContent = tr("gateNotResponding");
-    const os = detectOS();
-    const highlight = { windows: "download-windows", mac: "download-mac", linux: "download-linux" }[os];
-    if (highlight) document.getElementById(highlight).classList.add("ring-2", "ring-indigo-400");
   }
 }
 
@@ -392,6 +386,7 @@ const translations = {
     gateTitle:"Lokální služba nenalezena",
     gateDescPart1:"Tahle stránka potřebuje malou lokální službu běžící na tvém počítači, která umí mluvit s yt-dlp. Nic se neposílá nikam ven - běží to jen u tebe na",
     gateDownloadLabel:"Stáhnout a nainstalovat",
+    downloadButton:"⬇ Stáhnout z GitHub Releases",
     gateInstallerNote:"Instalátor zaregistruje službu, co běží na pozadí a startuje spolu s počítačem.",
     gateRetry:"🔄 Už jsem nainstaloval/spustil - zkusit znovu",
     gateSearching:"Hledám lokální službu...",
@@ -428,6 +423,7 @@ const translations = {
     gateTitle:"Local service not found",
     gateDescPart1:"This page needs a small local service running on your computer that can talk to yt-dlp. Nothing is sent anywhere else - it only runs on your machine at",
     gateDownloadLabel:"Download and install",
+    downloadButton:"⬇ Download from GitHub Releases",
     gateInstallerNote:"The installer registers a service that runs in the background and starts with your computer.",
     gateRetry:"🔄 I already installed/started it - try again",
     gateSearching:"Looking for the local service...",
@@ -464,6 +460,7 @@ const translations = {
     gateTitle:"Nie znaleziono usługi lokalnej",
     gateDescPart1:"Ta strona potrzebuje małej lokalnej usługi działającej na Twoim komputerze, która potrafi rozmawiać z yt-dlp. Nic nie jest wysyłane nigdzie indziej - działa to tylko u Ciebie na",
     gateDownloadLabel:"Pobierz i zainstaluj",
+    downloadButton:"⬇ Pobierz z GitHub Releases",
     gateInstallerNote:"Instalator zarejestruje usługę, która działa w tle i uruchamia się razem z komputerem.",
     gateRetry:"🔄 Już zainstalowałem/uruchomiłem - spróbuj ponownie",
     gateSearching:"Szukam lokalnej usługi...",
@@ -500,6 +497,7 @@ const translations = {
     gateTitle:"Service local introuvable",
     gateDescPart1:"Cette page a besoin d'un petit service local exécuté sur ton ordinateur, capable de communiquer avec yt-dlp. Rien n'est envoyé ailleurs - ça tourne uniquement chez toi sur",
     gateDownloadLabel:"Télécharger et installer",
+    downloadButton:"⬇ Télécharger depuis GitHub Releases",
     gateInstallerNote:"L'installateur enregistre un service qui tourne en arrière-plan et démarre avec ton ordinateur.",
     gateRetry:"🔄 Je l'ai déjà installé/lancé - réessayer",
     gateSearching:"Recherche du service local...",
@@ -536,6 +534,7 @@ const translations = {
     gateTitle:"ローカルサービスが見つかりません",
     gateDescPart1:"このページには、yt-dlpと通信できる、あなたのパソコン上で動く小さなローカルサービスが必要です。外部には何も送信されません - 動作するのはあなたのマシン上の",
     gateDownloadLabel:"ダウンロードしてインストール",
+    downloadButton:"⬇ GitHub Releasesからダウンロード",
     gateInstallerNote:"インストーラーはバックグラウンドで動作し、パソコンの起動と同時に立ち上がるサービスを登録します。",
     gateRetry:"🔄 すでにインストール/起動しました - 再試行",
     gateSearching:"ローカルサービスを検索中...",
