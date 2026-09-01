@@ -156,23 +156,37 @@ Symptoms: the server works while Termux is in the foreground, then stops
 responding the moment you switch to another app - or works only if you open
 the apps in a particular order.
 
-**On Android 13 and newer** you can turn it off in the system settings:
+#### You'll probably need these
 
-1. Settings -> About phone -> tap **Build number** 7 times to unlock
-   Developer options
-2. Settings -> System -> **Developer options**
-3. Find **Feature flags** -> turn off `settings_enable_monitor_phantom_procs`
+In practice the app is unlikely to work reliably without both of these:
 
-**On Android 12/12L** (no toggle in the UI) it takes one `adb` command from
-a computer:
+**1. Turn off the child-process limit.** Settings -> About phone -> tap
+**Build number** 7 times to unlock Developer options, then Settings ->
+System -> **Developer options** and turn off the setting that limits child
+processes (its exact name varies by manufacturer - on some phones it's a
+"Feature flags" entry called `settings_enable_monitor_phantom_procs`, on
+others a plain toggle like "Disable child process restrictions").
+
+If your phone has no such toggle at all, the same thing can be done with
+one `adb` command from a computer:
 
 ```bash
 adb shell "/system/bin/device_config put activity_manager max_phantom_processes 2147483647"
 ```
 
-Also worth doing either way: set Termux's battery usage to **Unrestricted**
-(Settings -> Apps -> Termux -> Battery), and leave Termux running in the
-background rather than swiping it away.
+**2. Stop Android from putting Termux to sleep.** Settings -> Apps ->
+**Termux** -> Battery -> **Unrestricted** (wording varies: "No
+restrictions", "Don't optimize", etc.).
+
+#### Recommended as well
+
+**Raise the background process limit.** In Developer options, set
+**Background process limit** to the highest value your phone offers.
+On its own this usually isn't enough to fix the problem, but it helps once
+the two settings above are in place.
+
+Also: leave Termux running in the background rather than swiping it away
+from the recent-apps list.
 
 ### Known limitations
 
